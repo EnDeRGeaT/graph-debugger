@@ -1,13 +1,11 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(GraphTest VERSION 0.1.0 LANGUAGES C CXX)
 project(GraphDebugger VERSION 0.1.0 LANGUAGES C CXX)
 
 include(CTest)
 enable_testing()
 
 
-add_executable(GraphTest main.cpp)
-add_library(GraphDebugger SHARED 
+add_library(GraphDebugger STATIC 
     src/glad.c
     src/Shader.cpp
     src/ShaderProgram.cpp
@@ -20,13 +18,15 @@ add_library(GraphDebugger SHARED
 )
 
 
-target_compile_options(GraphDebugger PRIVATE -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wconversion -Wunused-parameter -std=c++20)
+target_compile_options(GraphDebugger PUBLIC -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wconversion -Wunused-parameter -static-libstdc++)
+target_compile_features(GraphDebugger PUBLIC cxx_std_20)
+# target_precompile_headers(GraphDebugger PUBLIC GraphDebugger.h)
 
 add_subdirectory(glfw)
 target_link_libraries(GraphDebugger PUBLIC glfw)
-target_link_libraries(GraphTest PUBLIC GraphDebugger)
 include_directories(include)
 include_directories(${CMAKE_CURRENT_LIST_DIR})
+include_directories(glfw/include)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

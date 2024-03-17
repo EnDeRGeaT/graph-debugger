@@ -26,7 +26,8 @@ Graph::Graph(uint32_t vertice_count, const std::vector<std::pair<uint32_t, uint3
     }
     _adj_list.assign(_sz, {});
     std::sort(_edges.begin(), _edges.end());
-    for(int i = 0; auto &[x, y]: _edges){
+    int i = 0;
+    for(auto &[x, y]: _edges){
         _adj_list[x].emplace_back(y, i);
         if(_is_directed == false) _adj_list[y].emplace_back(x, i);
         i++;
@@ -47,7 +48,8 @@ Graph::Graph(uint32_t vertice_count, std::vector<std::tuple<uint32_t, uint32_t, 
     _edges.reserve(_sz);
     _weights.reserve(_sz);
     _adj_list.assign(_sz, {});
-    for(int i = 0; auto &[x, y, w]: edges){
+    int i = 0;
+    for(auto &[x, y, w]: edges){
         _adj_list[x].emplace_back(y, i);
         if(_is_directed == false) _adj_list[y].emplace_back(x, i);
         _edges.emplace_back(x, y);

@@ -1,5 +1,5 @@
 //========================================================================
-// GLFW 3.4 Wayland - www.glfw.org
+// GLFW 3.5 Wayland - www.glfw.org
 //------------------------------------------------------------------------
 // Copyright (c) 2014 Jonas Ådahl <jadahl@gmail.com>
 //
@@ -232,9 +232,10 @@ GLFWvidmode* _glfwGetVideoModesWayland(_GLFWmonitor* monitor, int* found)
     return monitor->modes;
 }
 
-void _glfwGetVideoModeWayland(_GLFWmonitor* monitor, GLFWvidmode* mode)
+GLFWbool _glfwGetVideoModeWayland(_GLFWmonitor* monitor, GLFWvidmode* mode)
 {
     *mode = monitor->modes[monitor->wl.currentMode];
+    return GLFW_TRUE;
 }
 
 GLFWbool _glfwGetGammaRampWayland(_GLFWmonitor* monitor, GLFWgammaramp* ramp)

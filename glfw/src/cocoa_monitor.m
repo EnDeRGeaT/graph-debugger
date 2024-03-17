@@ -1,5 +1,5 @@
 //========================================================================
-// GLFW 3.4 macOS - www.glfw.org
+// GLFW 3.5 macOS - www.glfw.org
 //------------------------------------------------------------------------
 // Copyright (c) 2002-2006 Marcus Geelnard
 // Copyright (c) 2006-2019 Camilla Löwy <elmindreda@glfw.org>
@@ -549,13 +549,20 @@ GLFWvidmode* _glfwGetVideoModesCocoa(_GLFWmonitor* monitor, int* count)
     } // autoreleasepool
 }
 
-void _glfwGetVideoModeCocoa(_GLFWmonitor* monitor, GLFWvidmode *mode)
+GLFWbool _glfwGetVideoModeCocoa(_GLFWmonitor* monitor, GLFWvidmode *mode)
 {
     @autoreleasepool {
 
     CGDisplayModeRef native = CGDisplayCopyDisplayMode(monitor->ns.displayID);
+    if (!native)
+    {
+        _glfwInputError(GLFW_PLATFORM_ERROR, "Cocoa: Failed to query display mode");
+        return GLFW_FALSE;
+    }
+
     *mode = vidmodeFromCGDisplayMode(native, monitor->ns.fallbackRefreshRate);
     CGDisplayModeRelease(native);
+    return GLFW_TRUE;
 
     } // autoreleasepool
 }

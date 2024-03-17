@@ -1,6 +1,6 @@
 #pragma once
 #include "include/glad/glad.h"
-#include "GLFW/glfw3.h"
+#include "glfw/include/GLFW/glfw3.h"
 #include <algorithm>
 #include <condition_variable>
 #include <cstddef>
@@ -16,6 +16,7 @@
 #include <thread>
 #include <optional>
 #include <queue>
+
 
 namespace OpenGL{
     void APIENTRY glDebugOutput(GLenum source, 

@@ -118,13 +118,13 @@ void GraphTab::draw(OpenGL::Window& window){
     _edges.dump();
     _node_coords.dump();
     _line_shader.setUniform1f("width", _edge_thickness);
-    _line_shader.setUniform2fv("resolution", {window.getWidth(), window.getHeight()});
+    _line_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
     _line_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     glDrawElements(GL_LINES, _edges.getData().size() * 2, GL_UNSIGNED_INT, 0);
 
     _circle.bind();
     _circle_shader.use();
-    _circle_shader.setUniform2fv("resolution", {window.getWidth(), window.getHeight()});
+    _circle_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
     _circle_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     _circle_shader.setUniform1f("radius", _node_radius);
     _circle_shader.setUniform1f("bound", _node_thickness);

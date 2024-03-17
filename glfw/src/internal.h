@@ -1,5 +1,5 @@
 //========================================================================
-// GLFW 3.4 - www.glfw.org
+// GLFW 3.5 - www.glfw.org
 //------------------------------------------------------------------------
 // Copyright (c) 2002-2006 Marcus Geelnard
 // Copyright (c) 2006-2019 Camilla Löwy <elmindreda@glfw.org>
@@ -544,6 +544,7 @@ struct _GLFWwindow
     GLFWbool            stickyKeys;
     GLFWbool            stickyMouseButtons;
     GLFWbool            lockKeyMods;
+    GLFWbool            disableMouseButtonLimit;
     int                 cursorMode;
     char                mouseButtons[GLFW_MOUSE_BUTTON_LAST + 1];
     char                keys[GLFW_KEY_LAST + 1];
@@ -700,7 +701,7 @@ struct _GLFWplatform
     void (*getMonitorContentScale)(_GLFWmonitor*,float*,float*);
     void (*getMonitorWorkarea)(_GLFWmonitor*,int*,int*,int*,int*);
     GLFWvidmode* (*getVideoModes)(_GLFWmonitor*,int*);
-    void (*getVideoMode)(_GLFWmonitor*,GLFWvidmode*);
+    GLFWbool (*getVideoMode)(_GLFWmonitor*,GLFWvidmode*);
     GLFWbool (*getGammaRamp)(_GLFWmonitor*,GLFWgammaramp*);
     void (*setGammaRamp)(_GLFWmonitor*,const GLFWgammaramp*);
     // window

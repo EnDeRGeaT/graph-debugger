@@ -1,5 +1,5 @@
 //========================================================================
-// GLFW 3.4 - www.glfw.org
+// GLFW 3.5 - www.glfw.org
 //------------------------------------------------------------------------
 // Copyright (c) 2002-2006 Marcus Geelnard
 // Copyright (c) 2006-2019 Camilla Löwy <elmindreda@glfw.org>
@@ -450,7 +450,9 @@ GLFWAPI const GLFWvidmode* glfwGetVideoMode(GLFWmonitor* handle)
 
     _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
 
-    _glfw.platform.getVideoMode(monitor, &monitor->currentMode);
+    if (!_glfw.platform.getVideoMode(monitor, &monitor->currentMode))
+        return NULL;
+
     return &monitor->currentMode;
 }
 
