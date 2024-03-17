@@ -29,3 +29,4 @@ out
 *.out
 *.app
 
+CMakeKits.json
