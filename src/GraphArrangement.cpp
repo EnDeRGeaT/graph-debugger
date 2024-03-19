@@ -3,14 +3,14 @@
 #include <vector>
 
 std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>> &edges, std::pair<float, float> x_range, std::pair<float, float> y_range, float density){
+    const float tolerance = 0.5;
 	const float eps = 1e-9f;
 	float x_len = x_range.second - x_range.first;
 	float y_len = y_range.second - y_range.first;
 	float C = std::sqrt(std::min(x_len, y_len) / coords.size());
-    int size_pw = std::pow(coords.size(), 1);
+    float size_pw = std::max(coords.size() * 10., std::pow(coords.size(), 1.3));
 	density *= size_pw;
-    std::cerr << "density: " << density << std::endl;
-	int iterations = 100;
+	// int iterations = 100;
 
 	auto dist = [&](const std::pair<float, float> &a) {
 		return std::sqrt(a.first * a.first + a.second * a.second) + eps;
@@ -37,12 +37,15 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 		return step;
 	};
 	float energy = 1e12f;
-	float step = C / 2;
-	while (iterations > 0) {
-		iterations--;
+    float step = C;
+    for(auto [x0, y0]: coords){
+        for(auto [x, y]: coords){
+            step = std::max(step, dist({x - x0, y - y0}) * 0.25f);
+        }
+    }
+	while (true) {
 		float previous_energy = energy;
 		std::vector<std::pair<float, float>> forces(coords.size());
-
 		for (auto [u, v] : edges) {
 			if (u == v)
 				continue;
@@ -52,7 +55,6 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 			float d = dist(dir);
 			dir.first /= d;
 			dir.second /= d;
-			// std::cerr << "attract " << u << ' ' << v << ' ' << dir.first * a << ' ' << dir.second * a << std::endl;
 			forces[u].first -= dir.first * a;
 			forces[u].second -= dir.second * a;
 
@@ -70,7 +72,6 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
                 float d = dist(dir);
                 dir.first /= d;
                 dir.second /= d;
-				// std::cerr << "repulse " << i << ' ' << j << ' ' << dir.first * r << ' ' << dir.second * r << std::endl;
 
 				forces[j].first += dir.first * r;
 				forces[j].second += dir.second * r;
@@ -94,9 +95,9 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 			coords[i].second += dy;
 			energy += d;
 		}
-		// if(mx < C * tolerance){
-		//     break;
-		// }
+		if(mx < tolerance){
+		    break;
+		}
 		step = updateStep(step, energy, previous_energy);
 	}
 

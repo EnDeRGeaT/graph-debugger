@@ -20,13 +20,15 @@ add_library(GraphDebugger STATIC
 
 target_compile_options(GraphDebugger PUBLIC -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wconversion -Wunused-parameter -static-libstdc++)
 target_compile_features(GraphDebugger PUBLIC cxx_std_20)
-# target_precompile_headers(GraphDebugger PUBLIC GraphDebugger.h)
 
 add_subdirectory(glfw)
 target_link_libraries(GraphDebugger PUBLIC glfw)
-include_directories(include)
-include_directories(${CMAKE_CURRENT_LIST_DIR})
-include_directories(glfw/include)
+
+target_include_directories(GraphDebugger PRIVATE 
+    ${CMAKE_CURRENT_LIST_DIR}
+    glfw/include
+    include
+)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

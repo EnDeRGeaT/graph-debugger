@@ -228,9 +228,10 @@ class GraphTab : public OpenGL::Tab {
     float _node_thickness;
     float _edge_thickness;
     float _zoom;
+    float _graph_density;
     std::pair<float, float> _movement;
 
-    
+    void prettifyCoordinates(OpenGL::Window& window);
     void processInput(OpenGL::Window& win);
     void draw(OpenGL::Window& win);
 public:
