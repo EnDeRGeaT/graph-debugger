@@ -1,5 +1,6 @@
 #include "GraphDebugger.h"
 #include <algorithm>
+#include <cstdint>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -7,7 +8,7 @@
 #include <utility>
 
 void GraphTab::prettifyCoordinates(OpenGL::Window& window){
-    auto& coords = _node_coords.getData();
+    auto& coords = _node_coords.mutateData();
     float width = window.getWidth();
     float height = window.getHeight();
     coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density);
@@ -84,8 +85,9 @@ void GraphTab::processInput(OpenGL::Window& window){
         }
         else {
             if(index < coords.size()){
-                coords[index].first += cursor_dx;
-                coords[index].second += cursor_dy;
+                auto &mutable_coords = _node_coords.mutateData();
+                mutable_coords[index].first += cursor_dx;
+                mutable_coords[index].second += cursor_dy;
             }
             else{
                 _movement.first += cursor_dx;
@@ -103,7 +105,7 @@ void GraphTab::processInput(OpenGL::Window& window){
             size_t v = getClickedNode(cursor_x, cursor_y);
             if(v != coords.size()){
                 if(first_highlighted.has_value()){
-                    _edges.getData().emplace_back(*first_highlighted, v);
+                    _edges.mutateData().emplace_back(*first_highlighted, v);
                     first_highlighted = std::nullopt;
                 }
                 else{
@@ -111,7 +113,7 @@ void GraphTab::processInput(OpenGL::Window& window){
                 }
             }
             else{
-                coords.emplace_back(cursor_x, cursor_y);
+                _node_coords.mutateData().emplace_back(cursor_x, cursor_y);
                 first_highlighted = std::nullopt;
             }
             right_mouse_button_pressed = true;
@@ -168,6 +170,8 @@ void GraphTab::draw(OpenGL::Window& window){
     _line_shader.use();
     _edges.dump();
     _node_coords.dump();
+    _node_properties.dump();
+
     _line_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
     _line_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     _line_shader.setUniform1f("width", _edge_thickness);
@@ -186,13 +190,15 @@ void GraphTab::draw(OpenGL::Window& window){
 
 GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, OpenGL::Window& window):
     _circle_shader(),
-    _line_shader(),
     _circle(),
-    _line(),
     _node_coords(GL_ARRAY_BUFFER),
-    _edges(GL_ELEMENT_ARRAY_BUFFER),
+    _node_properties(GL_ARRAY_BUFFER),
+    _default_node_color(0x0000FF),
     _node_radius(25),
     _node_thickness(5),
+    _line_shader(),
+    _line(),
+    _edges(GL_ELEMENT_ARRAY_BUFFER),
     _edge_thickness(5),
     _zoom(1.0),
     _graph_density(30),
@@ -203,14 +209,20 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         vertexstream << R"(
         #version 460 core
         layout (location = 0) in vec2 vertex_position;
+        layout (location = 1) in uint vertex_color;
+        layout (location = 2) in float circle_radius;
 
         uniform vec2 resolution;
         uniform vec2 movement;
         uniform float zoom;
         out vec2 center;
+        out vec3 color;
+        out float radius;
 
         void main(){
             center = (vertex_position - resolution / 2 + movement) / zoom + resolution / 2;
+            color = vec3(vertex_color & 255, (vertex_color >> 8) & 255, (vertex_color >> 16) & 255) / 255;
+            radius = circle_radius;
             gl_Position = vec4(2 * center.x / resolution.x - 1, 1 - 2 * center.y / resolution.y, 0.0, 1.0);
         }
         )";
@@ -221,17 +233,25 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         layout (points) in;
         layout (triangle_strip, max_vertices = 4) out;
 
-        uniform vec2 resolution;
-        uniform float radius;
-        uniform float zoom;
+        in float radius[];
         in vec2 center[];
+        in vec3 color[];
+
+        uniform vec2 resolution;
+        uniform float zoom;
+
         out vec2 cen;
+        out vec3 col;
+        out float rad;
+
 
         void main(){
-            float rx = 2 * radius / zoom / resolution.x; 
-            float ry = 2 * radius / zoom / resolution.y; 
+            float rx = 2 * radius[0] / zoom / resolution.x; 
+            float ry = 2 * radius[0] / zoom / resolution.y; 
 
             cen = center[0];
+            col = color[0];
+            rad = radius[0];
             gl_Position = gl_in[0].gl_Position + vec4(-rx, ry, 0.0, 0.0);
             EmitVertex();
 
@@ -252,15 +272,17 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         fragmentstream << R"(
         #version 460 core
         layout(origin_upper_left, pixel_center_integer) in vec4 gl_FragCoord;
+
         in vec2 cen;
+        in vec3 col;
+        in float rad;
+
         out vec4 FragColor;
 
-        uniform float radius; 
         uniform float bound;
         uniform float zoom;
 
-        vec3 color = vec3(1.0, 1.0, 1.0);
-        vec3 border = vec3(0.0, 0.0, 0.0);
+        vec3 inner = vec3(1.0, 1.0, 1.0);
 
         float hardstep(float a, float b, float x){
             if(x < a) return 0;
@@ -269,12 +291,12 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
         void main(){
             float bound_zoomed = bound / zoom;
-            float radius_zoomed = radius / zoom;
+            float rad_zoomed = rad / zoom;
             vec2 diff = gl_FragCoord.xy - cen.xy;
             float dist = length(diff);
-            float t = 1.0 - hardstep(radius_zoomed - 2 * bound_zoomed, radius_zoomed - bound_zoomed, dist);
-            float t_border = 1.0 - hardstep(radius_zoomed - bound_zoomed, radius_zoomed, dist);
-            FragColor = vec4(mix(border, color, t), t_border);
+            float t = 1.0 - hardstep(rad_zoomed - 2 * bound_zoomed, rad_zoomed - bound_zoomed, dist);
+            float t_border = 1.0 - hardstep(rad_zoomed - bound_zoomed, rad_zoomed, dist);
+            FragColor = vec4(mix(col, inner, t), t_border);
         }
         )";
 
@@ -348,18 +370,23 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
 
     {
-        auto& vec = _edges.getData();
+        auto& vec = _edges.mutateData();
         vec = edges;
     }
 
     {
         std::mt19937 rng(0);
-        auto& vec = _node_coords.getData();
+        auto& vec = _node_coords.mutateData();
         auto distr_x = std::uniform_real_distribution<float>(0, window.getWidth());
         auto distr_y = std::uniform_real_distribution<float>(0, window.getHeight());
         vec = std::vector<std::pair<float, float>>(node_count);
         std::generate(vec.begin(), vec.end(), [&](){ return std::make_pair(distr_x(rng), distr_y(rng)); });
         prettifyCoordinates(window);
+    }
+
+    {
+        auto& vec = _node_properties.mutateData();
+        vec = std::vector<NodeParams>(node_count, {_default_node_color, _node_radius});
     }
 
     _line.bind();
@@ -368,18 +395,25 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(_node_coords.getData()[0]), (GLvoid*)0);  
     glEnableVertexAttribArray(0);
 
+
     _circle.bind();
     _node_coords.bind();
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(_node_coords.getData()[0]), (GLvoid*)0);  
     glEnableVertexAttribArray(0);
+
+    _node_properties.bind();
+    glVertexAttribPointer(1, 1, GL_UNSIGNED_INT, GL_FALSE, sizeof(_node_properties.getData()[0]), (GLvoid*)0);  
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(_node_properties.getData()[0]), (GLvoid*)sizeof(uint32_t));  
+    glEnableVertexAttribArray(2);
 }
 
 std::vector<std::pair<float, float>>& GraphTab::getCoordsVector(){
-    return _node_coords.getData();
+    return _node_coords.mutateData();
 }
 
 std::vector<std::pair<uint32_t, uint32_t>>& GraphTab::getEdgesVector(){
-    return _edges.getData();
+    return _edges.mutateData();
 }
 
 GraphTab::~GraphTab(){

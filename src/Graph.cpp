@@ -1,6 +1,5 @@
 #include "GraphDebugger.h"
 #include <algorithm>
-#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -63,7 +62,6 @@ Graph::~Graph(){
         std::cerr << "Waiting on window to close...\n";
         std::cerr.flush();
         _running_thread.join();
-        _window.reset();
     } 
 }
 
@@ -78,6 +76,7 @@ void Graph::visualize(const std::vector<uint32_t>& colors, const std::vector<std
                 cv.notify_all();
             }
             _window->run();
+            _window.reset();
         });
         cv.wait(lck, [&](){return _window != nullptr;});
     }

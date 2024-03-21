@@ -1,5 +1,4 @@
 #include "GraphDebugger.h"
-#include <mutex>
 namespace OpenGL{
 
     void Window::resize(){
@@ -15,14 +14,14 @@ namespace OpenGL{
         
         static bool left_pressed = false;
         int left_key = glfwGetKey(_handle, GLFW_KEY_LEFT);
-        if(left_key == GLFW_PRESS){
+        if(left_key == GLFW_PRESS && !left_pressed){
             if(_current_tab != 0) _current_tab--;
         }
         left_pressed = left_key == GLFW_PRESS;
 
         static bool right_pressed = false;
         int right_key = glfwGetKey(_handle, GLFW_KEY_RIGHT);
-        if(right_key == GLFW_PRESS){
+        if(right_key == GLFW_PRESS && !right_pressed){
             if(_current_tab + 1 != _tabs.size()) _current_tab++;
         }
         right_pressed = right_key == GLFW_PRESS;
@@ -87,7 +86,6 @@ namespace OpenGL{
             glDebugMessageCallback(glDebugOutput, nullptr);
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
         } 
-
     }
 
     void Window::run(){

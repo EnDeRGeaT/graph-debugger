@@ -89,10 +89,12 @@ namespace OpenGL{
         std::vector<T> _data;
         size_t _capacity;
         uint32_t _ID;
+        bool _probably_changed;
     public:
         Buffer(GLenum buffer_type, const std::vector<T>& data = {}):
         _buffer_type(buffer_type),
         _data(data.begin(), data.end()),
+        _probably_changed(true),
         _capacity(_data.capacity()) {
             glGenBuffers(1, &_ID);
             dump();
@@ -132,11 +134,18 @@ namespace OpenGL{
             glBindBuffer(_buffer_type, 0);
         }
 
-        std::vector<T>& getData(){
+        const std::vector<T>& getData() const {
+            return _data;
+        }
+
+        std::vector<T>& mutateData() {
+            _probably_changed = true;
             return _data;
         }
 
         void dump(){
+            if(_probably_changed == false) return;
+            _probably_changed = false;
             bind();
             if(_capacity != _data.capacity()){
                 _capacity = _data.capacity();
@@ -217,16 +226,26 @@ namespace OpenGL{
 std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>>& edges, std::pair<float, float> x_range, std::pair<float, float> y_range, float density = 30);
 
 class GraphTab : public OpenGL::Tab {
-    OpenGL::ShaderProgram _circle_shader, _line_shader;
-    OpenGL::VertexArray _circle, _line;
+    // node related
+    OpenGL::ShaderProgram _circle_shader;
+    OpenGL::VertexArray _circle;
     OpenGL::Buffer<std::pair<float, float>> _node_coords;
-    OpenGL::Buffer<std::pair<uint32_t, uint32_t>> _edges;
-    // OpenGL::Buffer<std::tuple<float, float, float>> _node_colors;
-    // OpenGL::Buffer<float> _node_radiuses;
-
+    struct NodeParams{
+        uint32_t color;
+        float radius;
+    };
+    OpenGL::Buffer<NodeParams> _node_properties;
+    uint32_t _default_node_color;
     float _node_radius;
     float _node_thickness;
+    
+    // edges related
+    OpenGL::ShaderProgram _line_shader;
+    OpenGL::VertexArray  _line;
+    OpenGL::Buffer<std::pair<uint32_t, uint32_t>> _edges;
     float _edge_thickness;
+
+    // graph view related
     float _zoom;
     float _graph_density;
     std::pair<float, float> _movement;
