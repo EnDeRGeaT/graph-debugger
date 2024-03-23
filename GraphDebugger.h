@@ -108,6 +108,7 @@ namespace OpenGL{
         _buffer_type(0),
         _data({}),
         _capacity(0),
+        _probably_changed(false),
         _ID(0){
             *this = std::move(x);
         }
@@ -117,8 +118,10 @@ namespace OpenGL{
             _data(std::move(x._data));
             _capacity = x._capacity;
             _ID = x._ID;
+            _probably_changed = true;
             x._ID = 0;
             x._capacity = 0;
+            x._probably_changed = false;
             return *this = std::move(x);
         }
 
@@ -128,6 +131,10 @@ namespace OpenGL{
 
         void bind() {
             glBindBuffer(_buffer_type, _ID);
+        }
+
+        uint32_t getID() const {
+            return _ID;
         }
 
         void unbind() {
@@ -238,11 +245,18 @@ class GraphTab : public OpenGL::Tab {
     uint32_t _default_node_color;
     float _node_radius;
     float _node_thickness;
+
     
     // edges related
     OpenGL::ShaderProgram _line_shader;
     OpenGL::VertexArray  _line;
     OpenGL::Buffer<std::pair<uint32_t, uint32_t>> _edges;
+    struct EdgeParams{
+        uint32_t color;
+        float thickness;
+    };
+    OpenGL::Buffer<EdgeParams> _edge_properties;
+    uint32_t _default_edge_color;
     float _edge_thickness;
 
     // graph view related
@@ -253,6 +267,8 @@ class GraphTab : public OpenGL::Tab {
     void prettifyCoordinates(OpenGL::Window& window);
     void processInput(OpenGL::Window& win);
     void draw(OpenGL::Window& win);
+    void addNode(std::pair<int, int> coords, NodeParams properties);
+    void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
 public:
     std::mutex mutating_mutex;
 

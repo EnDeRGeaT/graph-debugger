@@ -105,15 +105,21 @@ void GraphTab::processInput(OpenGL::Window& window){
             size_t v = getClickedNode(cursor_x, cursor_y);
             if(v != coords.size()){
                 if(first_highlighted.has_value()){
-                    _edges.mutateData().emplace_back(*first_highlighted, v);
+                    std::cerr << "adding edge\n";
+                    addEdge({*first_highlighted, v}, {_default_edge_color, _edge_thickness});
+                    _node_properties.mutateData()[*first_highlighted].color = _default_node_color;
                     first_highlighted = std::nullopt;
                 }
                 else{
+                    std::cerr << "highlighted a node\n";
                     first_highlighted = v;
+                    _node_properties.mutateData()[v].color = 0x00FF00;
                 }
             }
             else{
-                _node_coords.mutateData().emplace_back(cursor_x, cursor_y);
+                std::cerr << "adding node\n";
+                addNode({cursor_x, cursor_y}, {_default_node_color, _node_radius});
+                _node_properties.mutateData()[*first_highlighted].color = _default_node_color;
                 first_highlighted = std::nullopt;
             }
             right_mouse_button_pressed = true;
@@ -156,13 +162,6 @@ void GraphTab::processInput(OpenGL::Window& window){
         _zoom /= 0.95f;
     }
 
-
-// t KEY HANDLING (testing things out)
-    int t_key = glfwGetKey(handle, GLFW_KEY_T);
-    if(t_key == GLFW_PRESS){
-        _zoom /= 0.95f;
-    }
-
 }
 
 void GraphTab::draw(OpenGL::Window& window){
@@ -171,10 +170,11 @@ void GraphTab::draw(OpenGL::Window& window){
     _edges.dump();
     _node_coords.dump();
     _node_properties.dump();
+    _edge_properties.dump();
+
 
     _line_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
     _line_shader.setUniform2fv("movement", {_movement.first, _movement.second});
-    _line_shader.setUniform1f("width", _edge_thickness);
     _line_shader.setUniform1f("zoom", _zoom);
     glDrawElements(GL_LINES, _edges.getData().size() * 2, GL_UNSIGNED_INT, 0);
 
@@ -182,23 +182,35 @@ void GraphTab::draw(OpenGL::Window& window){
     _circle_shader.use();
     _circle_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
     _circle_shader.setUniform2fv("movement", {_movement.first, _movement.second});
-    _circle_shader.setUniform1f("radius", _node_radius);
     _circle_shader.setUniform1f("bound", _node_thickness);
     _circle_shader.setUniform1f("zoom", _zoom);
     glDrawArrays(GL_POINTS, 0, _node_coords.getData().size());
 }
 
+void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
+    _node_coords.mutateData().push_back(coords);
+    _node_properties.mutateData().push_back(properties);
+}
+void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
+    std::cerr << _node_coords.getData().size() << ' ' << "Edge: " << edge.first << ' ' << edge.second << '\n';
+    _edges.mutateData().push_back(edge);
+    _edge_properties.mutateData().push_back(properties);
+}
+
+
 GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, OpenGL::Window& window):
     _circle_shader(),
     _circle(),
     _node_coords(GL_ARRAY_BUFFER),
-    _node_properties(GL_ARRAY_BUFFER),
-    _default_node_color(0x0000FF),
+    _node_properties(GL_SHADER_STORAGE_BUFFER),
+    _default_node_color(0x0),
     _node_radius(25),
     _node_thickness(5),
     _line_shader(),
     _line(),
     _edges(GL_ELEMENT_ARRAY_BUFFER),
+    _edge_properties(GL_SHADER_STORAGE_BUFFER),
+    _default_edge_color(0x0),
     _edge_thickness(5),
     _zoom(1.0),
     _graph_density(30),
@@ -209,8 +221,13 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         vertexstream << R"(
         #version 460 core
         layout (location = 0) in vec2 vertex_position;
-        layout (location = 1) in uint vertex_color;
-        layout (location = 2) in float circle_radius;
+        struct NodeParams{
+            uint vertex_color;
+            float circle_radius;
+        };
+        layout (std430, binding=1) buffer ssbo {
+            NodeParams parameters[];
+        };
 
         uniform vec2 resolution;
         uniform vec2 movement;
@@ -221,8 +238,8 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
         void main(){
             center = (vertex_position - resolution / 2 + movement) / zoom + resolution / 2;
-            color = vec3(vertex_color & 255, (vertex_color >> 8) & 255, (vertex_color >> 16) & 255) / 255;
-            radius = circle_radius;
+            color = vec3(parameters[gl_VertexID].vertex_color & 255, (parameters[gl_VertexID].vertex_color >> 8) & 255, (parameters[gl_VertexID].vertex_color >> 16) & 255) / 255;
+            radius = parameters[gl_VertexID].circle_radius;
             gl_Position = vec4(2 * center.x / resolution.x - 1, 1 - 2 * center.y / resolution.y, 0.0, 1.0);
         }
         )";
@@ -311,12 +328,25 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         #version 460 core
         layout (location = 0) in vec2 vertex_position;
 
+        struct EdgeParams{
+            uint edge_color;
+            float edge_width;
+        };
+        layout (std430, binding=2) buffer ssbo {
+            EdgeParams parameters[];
+        };
+
+        out vec3 color;
+        out float width;
+
         uniform vec2 resolution;
         uniform vec2 movement;
         uniform float zoom;
 
         void main(){
             vec2 v = vertex_position + movement;
+            color = vec3(parameters[gl_VertexID / 2].edge_color & 255, (parameters[gl_VertexID / 2].edge_color >> 8) & 255, (parameters[gl_VertexID / 2].edge_color >> 16) & 255) / 255;
+            width = parameters[gl_VertexID / 2].edge_width;
             gl_Position = vec4(2 * v.x / resolution.x - 1, 1 - 2 * v.y / resolution.y, 0.0, zoom);
         }
         )";
@@ -327,15 +357,19 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         layout (lines) in;
         layout (triangle_strip, max_vertices = 4) out;
 
-        uniform float width;
+        in vec3 color[];
+        in float width[];
+
         uniform vec2 resolution;
         uniform float zoom;
 
+        out vec3 col;
 
         void main(){
-            float width_zoomed = width;
             vec2 dir = normalize((gl_in[0].gl_Position.xy - gl_in[1].gl_Position.xy) * resolution);
-            vec4 offset = vec4(vec2(-dir.y, dir.x) * width_zoomed / resolution, 0.0, 0.0);
+            vec4 offset = vec4(vec2(-dir.y, dir.x) * width[0] / resolution, 0.0, 0.0);
+
+            col = color[0];
 
             gl_Position = gl_in[1].gl_Position + offset;
             EmitVertex();
@@ -357,8 +391,11 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         #version 460 core
         out vec4 FragColor;
 
+        in vec3 col;
+
         void main(){
-            FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+            FragColor.rgb = col;
+            FragColor.a = 1.0;
         }
         )";
         _line_shader.addShader(vertexstream, GL_VERTEX_SHADER);
@@ -389,12 +426,20 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         vec = std::vector<NodeParams>(node_count, {_default_node_color, _node_radius});
     }
 
+    {
+        auto& vec = _edge_properties.mutateData();
+        vec = std::vector<EdgeParams>(_edges.getData().size(), {_default_edge_color, _edge_thickness});
+    }
+
+
     _line.bind();
     _edges.bind();
     _node_coords.bind();
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(_node_coords.getData()[0]), (GLvoid*)0);  
     glEnableVertexAttribArray(0);
 
+    _edge_properties.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _edge_properties.getID());
 
     _circle.bind();
     _node_coords.bind();
@@ -402,10 +447,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     glEnableVertexAttribArray(0);
 
     _node_properties.bind();
-    glVertexAttribPointer(1, 1, GL_UNSIGNED_INT, GL_FALSE, sizeof(_node_properties.getData()[0]), (GLvoid*)0);  
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(_node_properties.getData()[0]), (GLvoid*)sizeof(uint32_t));  
-    glEnableVertexAttribArray(2);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _node_properties.getID());
 }
 
 std::vector<std::pair<float, float>>& GraphTab::getCoordsVector(){
