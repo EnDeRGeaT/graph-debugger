@@ -47,4 +47,4 @@ namespace OpenGL{
         } std::cerr << std::endl;
         std::cerr << std::endl;
     }
-}
+};

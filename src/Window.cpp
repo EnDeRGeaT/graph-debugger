@@ -66,7 +66,7 @@ namespace OpenGL{
         }
         glfwMakeContextCurrent(_handle);
         glfwSetInputMode(_handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        glfwSwapInterval(1);
+        // glfwSwapInterval(1);
 
         // glad: load all OpenGL function pointers
         // ---------------------------------------

@@ -18,6 +18,7 @@
 #include <queue>
 
 
+
 namespace OpenGL{
     void APIENTRY glDebugOutput(GLenum source, 
                             GLenum type, 
@@ -26,6 +27,8 @@ namespace OpenGL{
                             GLsizei length, 
                             const char *message, 
                             const void *userParam);
+
+    extern const uint8_t texture_atlas[];
 
     /*
     RAII encapsulation of a shader.
@@ -164,7 +167,6 @@ namespace OpenGL{
                 glUnmapBuffer(_buffer_type);
             }
         }
-
     };
 
     class VertexArray{
@@ -213,12 +215,15 @@ namespace OpenGL{
         ~Window();
         template<typename T, typename ...Args>
         std::weak_ptr<T> addTab(Args&&... args){
-            std::unique_lock lck(_tab_mutex);
-            _addition_pending = true;
-            func = [&]() -> std::shared_ptr<T> {
-                return std::make_shared<T>(args...);
-            };
-            _tab_cv.wait(lck, [&]() {return _addition_pending == false; });
+            std::thread async_thread([&]() {
+                std::unique_lock lck(_tab_mutex);
+                _addition_pending = true;
+                func = [&]() -> std::shared_ptr<T> {
+                    return std::make_shared<T>(args...);
+                };
+                _tab_cv.wait(lck, [&]() {return _addition_pending == false; });
+            });
+            async_thread.join();
             return std::dynamic_pointer_cast<T>(_tabs.back());
         }
         void deleteTab(size_t index);
@@ -227,7 +232,6 @@ namespace OpenGL{
         int getHeight() const;
         GLFWwindow* getHandle() const;
     };
-
 };
 
 std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>>& edges, std::pair<float, float> x_range, std::pair<float, float> y_range, float density = 30);
@@ -245,6 +249,9 @@ class GraphTab : public OpenGL::Tab {
     uint32_t _default_node_color;
     float _node_radius;
     float _node_thickness;
+    void addNode(std::pair<int, int> coords, NodeParams properties);
+    void prettifyCoordinates(OpenGL::Window& window);
+
 
     
     // edges related
@@ -258,17 +265,27 @@ class GraphTab : public OpenGL::Tab {
     OpenGL::Buffer<EdgeParams> _edge_properties;
     uint32_t _default_edge_color;
     float _edge_thickness;
+    void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
+
+    // text related
+    uint32_t _texture_atlas_id; // the only thing that is not RAII here
+    OpenGL::Buffer<char> _string_buffer;
+    struct StringParams{
+        uint32_t start;
+        uint32_t size;
+        uint32_t color;
+        uint32_t scale;
+        std::pair<float, float> coord;
+    };
+    OpenGL::Buffer<StringParams> _strings;
 
     // graph view related
     float _zoom;
     float _graph_density;
     std::pair<float, float> _movement;
 
-    void prettifyCoordinates(OpenGL::Window& window);
     void processInput(OpenGL::Window& win);
     void draw(OpenGL::Window& win);
-    void addNode(std::pair<int, int> coords, NodeParams properties);
-    void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
 public:
     std::mutex mutating_mutex;
 

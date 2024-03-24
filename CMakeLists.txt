@@ -15,6 +15,7 @@ add_library(GraphDebugger STATIC
     src/Graph.cpp
     src/utils.cpp
     src/GraphArrangement.cpp
+    src/hardcoded_texture_atlas.cpp
 )
 
 
