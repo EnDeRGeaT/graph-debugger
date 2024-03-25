@@ -63,7 +63,7 @@ void GraphTab::processInput(OpenGL::Window& window){
 
     auto& coords = _node_coords.getData();
     
-    auto getClickedNode = [rsqr = _node_radius * _node_radius, &coords, this](float cx, float cy){
+    auto getClickedNode = [rsqr = _default_node_radius * _default_node_radius, &coords, this](float cx, float cy){
         size_t ind = 0;
         for(; ind < coords.size(); ind++){
             auto &[x, y] = coords[ind];
@@ -106,7 +106,7 @@ void GraphTab::processInput(OpenGL::Window& window){
             if(v != coords.size()){
                 if(first_highlighted.has_value()){
                     std::cerr << "adding edge\n";
-                    addEdge({*first_highlighted, v}, {_default_edge_color, _edge_thickness});
+                    addEdge({*first_highlighted, v}, {_default_edge_color, _default_edge_thickness});
                     _node_properties.mutateData()[*first_highlighted].color = _default_node_color;
                     first_highlighted = std::nullopt;
                 }
@@ -118,7 +118,7 @@ void GraphTab::processInput(OpenGL::Window& window){
             }
             else{
                 std::cerr << "adding node\n";
-                addNode({cursor_x, cursor_y}, {_default_node_color, _node_radius});
+                addNode({cursor_x, cursor_y}, {_default_node_color, _default_node_radius});
                 if(first_highlighted.has_value()) _node_properties.mutateData()[*first_highlighted].color = _default_node_color;
                 first_highlighted = std::nullopt;
             }
@@ -165,51 +165,85 @@ void GraphTab::processInput(OpenGL::Window& window){
 }
 
 void GraphTab::draw(OpenGL::Window& window){
-    _edges.dump();
     _node_coords.dump();
-    _node_properties.dump();
+    _edges.dump();
+
     _edge_properties.dump();
-
-
-    _line_shader.use();
-    _line_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
-    _line_shader.setUniform2fv("movement", {_movement.first, _movement.second});
-    _line_shader.setUniform1f("zoom", _zoom);
+    _edge_shader.use();
+    _edge_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
+    _edge_shader.setUniform2fv("movement", {_movement.first, _movement.second});
+    _edge_shader.setUniform1f("zoom", _zoom);
     glDrawArrays(GL_TRIANGLES, 0, 6 * _edges.getData().size());
 
-    _circle_shader.use();
-    _circle_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
-    _circle_shader.setUniform2fv("movement", {_movement.first, _movement.second});
-    _circle_shader.setUniform1f("bound", _node_thickness);
-    _circle_shader.setUniform1f("zoom", _zoom);
+    _node_properties.dump();
+    _node_shader.use();
+    _node_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
+    _node_shader.setUniform2fv("movement", {_movement.first, _movement.second});
+    _node_shader.setUniform1f("bound", _default_node_thickness);
+    _node_shader.setUniform1f("zoom", _zoom);
     glDrawArrays(GL_TRIANGLES, 0, 6 * _node_coords.getData().size());
+
+
+    _string_properties.dump();
+    _string_shader.use();
+    _string_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
+    _string_shader.setUniform2fv("movement", {_movement.first, _movement.second});
+    _string_shader.setUniform1f("zoom", _zoom);
+    for(uint32_t string_index = 0; string_index < _strings.size(); string_index++){
+        const auto& str = _strings[string_index];
+        auto& buffer = _string_buffer.mutateData();
+        buffer.resize(str.size());
+        std::copy(str.begin(), str.end(), buffer.begin());
+        _string_buffer.dump();
+        _string_shader.setUniform1ui("string_index", string_index);
+        glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
+        glDrawArrays(GL_TRIANGLES, 0, 6 * str.size());
+    }
 }
 
 void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
     _node_coords.mutateData().push_back(coords);
     _node_properties.mutateData().push_back(properties);
 }
+
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
     std::cerr << _node_coords.getData().size() << ' ' << "Edge: " << edge.first << ' ' << edge.second << '\n';
     _edges.mutateData().push_back(edge);
     _edge_properties.mutateData().push_back(properties);
 }
 
+void GraphTab::addString(std::string str, std::pair<float, float> coord){
+    _strings.push_back(std::move(str));
+    _string_properties.mutateData().emplace_back(_default_string_color, _default_string_scale, std::move(coord));
+}
+
+std::string& GraphTab::mutateString(size_t index) {
+    return _strings[index];
+}
+
+GraphTab::StringParams& GraphTab::mutateStringProperty(size_t index) {
+    return _string_properties.mutateData()[index];
+}
 
 GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, OpenGL::Window& window):
-    _circle_shader(),
-    _circle(),
+    _empty_vao(),
+    _node_shader(),
     _node_coords(GL_SHADER_STORAGE_BUFFER),
     _node_properties(GL_SHADER_STORAGE_BUFFER),
     _default_node_color(0x0),
-    _node_radius(25),
-    _node_thickness(5),
-    _line_shader(),
+    _default_node_radius(25),
+    _default_node_thickness(5),
+    _edge_shader(),
     _line(),
     _edges(GL_SHADER_STORAGE_BUFFER),
     _edge_properties(GL_SHADER_STORAGE_BUFFER),
     _default_edge_color(0x0),
-    _edge_thickness(5),
+    _default_edge_thickness(5),
+    _string_buffer(GL_SHADER_STORAGE_BUFFER),
+    _strings(),
+    _string_properties(GL_SHADER_STORAGE_BUFFER),
+    _default_string_color(0x0),
+    _default_string_scale(5.0),
     _zoom(1.0),
     _graph_density(30),
     _movement(0.0, 0.0)
@@ -298,8 +332,8 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         }
         )";
 
-        _circle_shader.addShader(vertexstream, GL_VERTEX_SHADER);
-        _circle_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
+        _node_shader.addShader(vertexstream, GL_VERTEX_SHADER);
+        _node_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
     }
 
     {
@@ -382,11 +416,22 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         }
         )";
         std::cerr << "second one\n";
-        _line_shader.addShader(vertexstream, GL_VERTEX_SHADER);
-        _line_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
+        _edge_shader.addShader(vertexstream, GL_VERTEX_SHADER);
+        _edge_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
     }    
 
+    {
+        std::stringstream vertexstream;
+        vertexstream << R"(
+        )";
+        
+        std::stringstream fragmentstream;
+        fragmentstream << R"(
+        )";
 
+        _string_shader.addShader(vertexstream, GL_VERTEX_SHADER);
+        _string_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
+    }
 
 
     {
@@ -406,12 +451,12 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
     {
         auto& vec = _node_properties.mutateData();
-        vec = std::vector<NodeParams>(node_count, {_default_node_color, _node_radius});
+        vec = std::vector<NodeParams>(node_count, {_default_node_color, _default_node_radius});
     }
 
     {
         auto& vec = _edge_properties.mutateData();
-        vec = std::vector<EdgeParams>(_edges.getData().size(), {_default_edge_color, _edge_thickness});
+        vec = std::vector<EdgeParams>(_edges.getData().size(), {_default_edge_color, _default_edge_thickness});
     }
 
     _node_coords.bind();
@@ -426,7 +471,31 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _edge_properties.bind();
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _edge_properties.getID());
     
-    _circle.bind();
+    _string_buffer.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _string_buffer.getID());
+
+    _string_properties.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, _string_properties.getID());
+
+    glGenTextures(1, &_texture_atlas_id);
+    glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
+    glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RED,
+            /*placehorder*/, 
+            /*placehorder*/, 
+            0,
+            GL_RED,
+            GL_UNSIGNED_BYTE,
+            OpenGL::texture_atlas
+    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    _empty_vao.bind();
 }
 
 std::vector<std::pair<float, float>>& GraphTab::getCoordsVector(){
@@ -439,4 +508,5 @@ std::vector<std::pair<uint32_t, uint32_t>>& GraphTab::getEdgesVector(){
 
 GraphTab::~GraphTab(){
     std::lock_guard lock(mutating_mutex);
+    glDeleteTextures(1, &_texture_atlas_id);
 }

@@ -237,9 +237,11 @@ namespace OpenGL{
 std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>>& edges, std::pair<float, float> x_range, std::pair<float, float> y_range, float density = 30);
 
 class GraphTab : public OpenGL::Tab {
+    // empty vao because it doesn't work otherwise
+    OpenGL::VertexArray _empty_vao;
+
     // node related
-    OpenGL::ShaderProgram _circle_shader;
-    OpenGL::VertexArray _circle;
+    OpenGL::ShaderProgram _node_shader;
     OpenGL::Buffer<std::pair<float, float>> _node_coords;
     struct NodeParams{
         uint32_t color;
@@ -247,15 +249,15 @@ class GraphTab : public OpenGL::Tab {
     };
     OpenGL::Buffer<NodeParams> _node_properties;
     uint32_t _default_node_color;
-    float _node_radius;
-    float _node_thickness;
+    float _default_node_radius;
+    float _default_node_thickness;
+
     void addNode(std::pair<int, int> coords, NodeParams properties);
     void prettifyCoordinates(OpenGL::Window& window);
 
-
     
     // edges related
-    OpenGL::ShaderProgram _line_shader;
+    OpenGL::ShaderProgram _edge_shader;
     OpenGL::VertexArray  _line;
     OpenGL::Buffer<std::pair<uint32_t, uint32_t>> _edges;
     struct EdgeParams{
@@ -264,20 +266,27 @@ class GraphTab : public OpenGL::Tab {
     };
     OpenGL::Buffer<EdgeParams> _edge_properties;
     uint32_t _default_edge_color;
-    float _edge_thickness;
+    float _default_edge_thickness;
+
     void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
 
     // text related
     uint32_t _texture_atlas_id; // the only thing that is not RAII here
-    OpenGL::Buffer<char> _string_buffer;
+    OpenGL::ShaderProgram _string_shader;
+    OpenGL::Buffer<uint32_t> _string_buffer;
     struct StringParams{
-        uint32_t start;
-        uint32_t size;
         uint32_t color;
-        uint32_t scale;
+        float scale;
         std::pair<float, float> coord;
     };
-    OpenGL::Buffer<StringParams> _strings;
+    std::vector<std::string> _strings;
+    OpenGL::Buffer<StringParams> _string_properties;
+    uint32_t _default_string_color;
+    float _default_string_scale;
+
+    void addString(std::string str, std::pair<float, float> coord);
+    std::string& mutateString(size_t index);
+    StringParams& mutateStringProperty(size_t index);
 
     // graph view related
     float _zoom;
