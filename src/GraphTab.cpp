@@ -5,13 +5,19 @@
 #include <optional>
 #include <random>
 #include <sstream>
+#include <string>
 #include <utility>
+
+
 
 void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     auto& coords = _node_coords.mutateData();
     float width = window.getWidth();
     float height = window.getHeight();
     coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density);
+    for(size_t index = 0; index < coords.size(); index++){
+        _string_coords[_node_labels[index]].coord = coords[index];
+    }
     auto [min_x, min_y] = coords[0];
     auto [max_x, max_y] = coords[0];
     for(auto [x, y]: coords){
@@ -88,6 +94,7 @@ void GraphTab::processInput(OpenGL::Window& window){
                 auto &mutable_coords = _node_coords.mutateData();
                 mutable_coords[index].first += cursor_dx;
                 mutable_coords[index].second += cursor_dy;
+                _string_coords[_node_labels[index]].coord = mutable_coords[index];
             }
             else{
                 _movement.first += cursor_dx;
@@ -162,9 +169,36 @@ void GraphTab::processInput(OpenGL::Window& window){
         _zoom /= 0.95f;
     }
 
+// t KEY HANDLING (trying things out)
+    int t_key = glfwGetKey(handle, GLFW_KEY_T);
+    if(t_key == GLFW_PRESS){
+        for(size_t i = 0; i < coords.size(); i++){
+            auto [x, y] = _string_coords[_node_labels[i]].alignCoord(sdf_glyph_width * _strings[_node_labels[i]].size(), 20, {0, 0});
+            std::cerr << i << ": " << coords[i].first - x << ' ' << coords[i].second - y << std::endl;
+        }
+    }
 }
 
 void GraphTab::draw(OpenGL::Window& window){
+
+    _node_coords.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _node_coords.getID());
+
+    _edges.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _edges.getID());
+
+    _node_properties.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _node_properties.getID());
+
+    _edge_properties.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _edge_properties.getID());
+    
+    _string_buffer.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _string_buffer.getID());
+
+    _string_properties.bind();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, _string_properties.getID());
+
     _node_coords.dump();
     _edges.dump();
 
@@ -187,8 +221,13 @@ void GraphTab::draw(OpenGL::Window& window){
     _string_properties.dump();
     _string_shader.use();
     _string_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
-    _string_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     _string_shader.setUniform1f("zoom", _zoom);
+    _string_shader.setUniform2fv("sdf_glyph_size", {1.0f * sdf_glyph_width, 1.0f * sdf_glyph_height});
+    _string_shader.setUniform1ui("letters_in_column", letters_in_column);
+    _string_shader.setUniform1f("bearing", glyph_advance);
+
+    glActiveTexture(GL_TEXTURE0);
+
     for(uint32_t string_index = 0; string_index < _strings.size(); string_index++){
         const auto& str = _strings[string_index];
         auto& buffer = _string_buffer.mutateData();
@@ -196,6 +235,8 @@ void GraphTab::draw(OpenGL::Window& window){
         std::copy(str.begin(), str.end(), buffer.begin());
         _string_buffer.dump();
         _string_shader.setUniform1ui("string_index", string_index);
+        auto [x, y] = _string_coords[string_index].alignCoord(glyph_advance * str.size(), 23, _movement);
+        _string_shader.setUniform2fv("coord", {x, y});
         glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
         glDrawArrays(GL_TRIANGLES, 0, 6 * str.size());
     }
@@ -204,6 +245,7 @@ void GraphTab::draw(OpenGL::Window& window){
 void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
     _node_coords.mutateData().push_back(coords);
     _node_properties.mutateData().push_back(properties);
+    _node_labels.push_back(addString(std::to_string(_node_labels.size()), coords, StringAlignment::middle_center, true));
 }
 
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
@@ -212,13 +254,19 @@ void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties
     _edge_properties.mutateData().push_back(properties);
 }
 
-void GraphTab::addString(std::string str, std::pair<float, float> coord){
+size_t GraphTab::addString(std::string str, std::pair<float, float> coord, GraphTab::StringAlignment alignment, bool is_affected_by_movement){
     _strings.push_back(std::move(str));
-    _string_properties.mutateData().emplace_back(_default_string_color, _default_string_scale, std::move(coord));
+    _string_properties.mutateData().emplace_back(_default_string_color, _default_string_scale);
+    _string_coords.emplace_back(coord, alignment, is_affected_by_movement);
+    return _strings.size() - 1;
 }
 
 std::string& GraphTab::mutateString(size_t index) {
     return _strings[index];
+}
+
+GraphTab::StringCoord& GraphTab::mutateStringCoord(size_t index){
+    return _string_coords[index];
 }
 
 GraphTab::StringParams& GraphTab::mutateStringProperty(size_t index) {
@@ -231,7 +279,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _node_coords(GL_SHADER_STORAGE_BUFFER),
     _node_properties(GL_SHADER_STORAGE_BUFFER),
     _default_node_color(0x0),
-    _default_node_radius(25),
+    _default_node_radius(30),
     _default_node_thickness(5),
     _edge_shader(),
     _line(),
@@ -243,7 +291,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _strings(),
     _string_properties(GL_SHADER_STORAGE_BUFFER),
     _default_string_color(0x0),
-    _default_string_scale(5.0),
+    _default_string_scale(1.0),
     _zoom(1.0),
     _graph_density(30),
     _movement(0.0, 0.0)
@@ -376,7 +424,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             return vec2(2 * a.x / resolution.x - 1, 1 - 2 * a.y / resolution.y);
         }
 
-        void main(){
+        void main() {
             int edge_id = gl_VertexID / 6;
             int vertice_id = gl_VertexID % 6;
 
@@ -390,7 +438,6 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
             vec2 dir = normalize((v - u) * resolution);
             vec2 offset = vec2(-dir.y, dir.x) * parameters[edge_id].edge_width / resolution;
-
 
             gl_Position.zw = vec2(0.0, zoom);
 
@@ -410,7 +457,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
         in vec3 color;
 
-        void main(){
+        void main() {
             FragColor.rgb = color;
             FragColor.a = 1.0;
         }
@@ -423,10 +470,83 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     {
         std::stringstream vertexstream;
         vertexstream << R"(
+        #version 460 core
+        struct StringParams{
+            uint color;
+            float scale;
+        };
+        
+        layout (std430, binding=4) buffer string_itself {
+            uint chars[];
+        };
+
+        layout (std430, binding=5) buffer string_properties {
+            StringParams parameters[];
+        };
+
+        uniform vec2 resolution;
+        uniform float zoom;
+
+        uniform vec2 sdf_glyph_size;
+        uniform uint letters_in_column;
+        uniform float bearing;
+
+        uniform uint string_index;
+        uniform vec2 coord;
+
+        out vec2 texCoords;
+        out vec3 color;
+
+        const vec2 direction[6] = {
+            {0.0, 0.0},
+            {0.0, 1.0},
+            {1.0, 0.0},
+            {0.0, 1.0},
+            {1.0, 1.0},
+            {1.0, 0.0}
+        };
+
+        void main() {
+            int char_id = gl_VertexID / 6;
+            int vertice_id = gl_VertexID % 6;
+
+            vec2 leftTex = vec2((chars[char_id] - 32) % letters_in_column, (chars[char_id] - 32) / letters_in_column) * sdf_glyph_size;
+            vec2 left = coord + vec2(bearing * char_id, 0.0);
+
+            color = vec3(parameters[string_index].color & 255, (parameters[string_index].color >> 8) & 255, (parameters[string_index].color >> 16) & 255) / 255;
+
+            vec2 sq = sdf_glyph_size * parameters[string_index].scale;
+            
+            gl_Position.xy = left + sq * direction[vertice_id];
+            texCoords = leftTex + sdf_glyph_size * direction[vertice_id];
+
+            gl_Position = vec4(2 * gl_Position.x / resolution.x - 1, 1 - 2 * gl_Position.y / resolution.y, 0.0, zoom);
+        }
         )";
         
         std::stringstream fragmentstream;
         fragmentstream << R"(
+        #version 460 core
+        in vec2 texCoords;
+        out vec4 FragColor;
+
+        uniform sampler2D text;
+        in vec3 color;
+
+        const float SDFsize = 40;
+
+        void main() {    
+            vec2 coords = texCoords / textureSize(text, 0);
+            float dist = (0.5 - texture(text, coords).r) * SDFsize;
+
+            vec2 duv = fwidth(coords);
+
+            float dtex = length(duv * textureSize(text, 0));
+
+            float pixelDist = dist * 2 / dtex;
+
+            FragColor = vec4(color, clamp(0.5 - pixelDist, 0.0, 1.0));
+        }
         )";
 
         _string_shader.addShader(vertexstream, GL_VERTEX_SHADER);
@@ -441,17 +561,12 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
     {
         std::mt19937 rng(0);
-        auto& vec = _node_coords.mutateData();
         auto distr_x = std::uniform_real_distribution<float>(0, window.getWidth());
         auto distr_y = std::uniform_real_distribution<float>(0, window.getHeight());
-        vec = std::vector<std::pair<float, float>>(node_count);
-        std::generate(vec.begin(), vec.end(), [&](){ return std::make_pair(distr_x(rng), distr_y(rng)); });
+        for(size_t i = 0; i < node_count; i++){
+            addNode(std::make_pair(distr_x(rng), distr_y(rng)), {_default_node_color, _default_node_radius});
+        }
         prettifyCoordinates(window);
-    }
-
-    {
-        auto& vec = _node_properties.mutateData();
-        vec = std::vector<NodeParams>(node_count, {_default_node_color, _default_node_radius});
     }
 
     {
@@ -459,23 +574,6 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         vec = std::vector<EdgeParams>(_edges.getData().size(), {_default_edge_color, _default_edge_thickness});
     }
 
-    _node_coords.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _node_coords.getID());
-
-    _edges.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _edges.getID());
-
-    _node_properties.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _node_properties.getID());
-
-    _edge_properties.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _edge_properties.getID());
-    
-    _string_buffer.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _string_buffer.getID());
-
-    _string_properties.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, _string_properties.getID());
 
     glGenTextures(1, &_texture_atlas_id);
     glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
@@ -483,8 +581,8 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             GL_TEXTURE_2D,
             0,
             GL_RED,
-            /*placehorder*/, 
-            /*placehorder*/, 
+            texture_atlas_width,
+            texture_atlas_height,
             0,
             GL_RED,
             GL_UNSIGNED_BYTE,
@@ -510,3 +608,10 @@ GraphTab::~GraphTab(){
     std::lock_guard lock(mutating_mutex);
     glDeleteTextures(1, &_texture_atlas_id);
 }
+
+
+std::pair<float, float> GraphTab::StringCoord::alignCoord(float x_size, float y_size, const std::pair<float, float>& movement){
+    int convert = static_cast<int>(alignment);
+    return std::make_pair(coord.first + movement.first * is_affected_by_movement - x_size / 2 * (convert % 3), coord.second - 10 + movement.second * is_affected_by_movement - y_size / 2 * (convert / 3));
+}
+

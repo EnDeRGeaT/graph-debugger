@@ -232,9 +232,29 @@ namespace OpenGL{
         int getHeight() const;
         GLFWwindow* getHandle() const;
     };
+
+    class InputHandler{
+    public:
+        class Base{
+        public:
+            virtual void perform(int key_state) = 0;
+        };
+        InputHandler();
+        void attach(int key, std::unique_ptr<Base>&& invoker);
+        void invoke();
+        void poll(GLFWwindow* handle);
+    private:
+        int _key_states[128];
+        int _cursor_pos_x, _cursor_pos_y;
+        std::unique_ptr<Base> _key_handlers[128];
+        std::unique_ptr<Base> _mouse_handlers[10];
+        std::unique_ptr<Base> _cursor_handler;
+    };
 };
 
 std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>>& edges, std::pair<float, float> x_range, std::pair<float, float> y_range, float density = 30);
+
+
 
 class GraphTab : public OpenGL::Tab {
     // empty vao because it doesn't work otherwise
@@ -248,6 +268,7 @@ class GraphTab : public OpenGL::Tab {
         float radius;
     };
     OpenGL::Buffer<NodeParams> _node_properties;
+    std::vector<uint32_t> _node_labels; // labels are indexes to their respective strings in _strings array 
     uint32_t _default_node_color;
     float _default_node_radius;
     float _default_node_thickness;
@@ -271,21 +292,48 @@ class GraphTab : public OpenGL::Tab {
     void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
 
     // text related
+    const int letters_in_row = 8, letters_in_column = 12;
+    const int sdf_glyph_width = 32, sdf_glyph_height = 56, glyph_advance = 19;
+    const int actual_glyph_width = 19, actual_glyph_height = 32;
+    const int texture_atlas_width = letters_in_column * sdf_glyph_width, texture_atlas_height = letters_in_row * sdf_glyph_height;
+
     uint32_t _texture_atlas_id; // the only thing that is not RAII here
     OpenGL::ShaderProgram _string_shader;
     OpenGL::Buffer<uint32_t> _string_buffer;
+
     struct StringParams{
         uint32_t color;
         float scale;
-        std::pair<float, float> coord;
     };
+    
+    enum class StringAlignment {
+        top_left = 0,
+        top_center = 1,
+        top_right = 2,
+        middle_left = 3,
+        middle_center = 4,
+        middle_right = 5,
+        bottom_left = 6,
+        bottom_center = 7,
+        bottom_right = 8,
+    };
+
+    struct StringCoord{
+        std::pair<float, float> coord;
+        StringAlignment alignment;
+        bool is_affected_by_movement;
+        std::pair<float, float> alignCoord(float x_size, float y_size, const std::pair<float, float>& movement);
+    };
+
     std::vector<std::string> _strings;
+    std::vector<StringCoord> _string_coords;
     OpenGL::Buffer<StringParams> _string_properties;
     uint32_t _default_string_color;
     float _default_string_scale;
 
-    void addString(std::string str, std::pair<float, float> coord);
+    size_t addString(std::string str, std::pair<float, float> coord, StringAlignment alignment, bool is_affected_by_movement = false);
     std::string& mutateString(size_t index);
+    StringCoord& mutateStringCoord(size_t index);
     StringParams& mutateStringProperty(size_t index);
 
     // graph view related
