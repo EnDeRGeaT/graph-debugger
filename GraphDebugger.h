@@ -235,20 +235,39 @@ namespace OpenGL{
 
     class InputHandler{
     public:
-        class Base{
+        struct BaseKey{
         public:
             virtual void perform(int key_state) = 0;
         };
-        InputHandler();
-        void attach(int key, std::unique_ptr<Base>&& invoker);
+        struct BaseTwoState {
+        public:
+            virtual void perform(std::pair<double, double> two_state) = 0;
+        };
+        InputHandler(GLFWwindow* handle);
+        void attachKey(int key, std::unique_ptr<BaseKey>&& invoker);
+        void attachMouse(int key, std::unique_ptr<BaseKey>&& invoker);
+        void attachMousePos(std::unique_ptr<BaseTwoState>&& invoker);
+        void attachMousePosOffset(std::unique_ptr<BaseTwoState>&& invoker);
+        void attachMouseScrollOffset(std::unique_ptr<BaseTwoState>&& invoker);
         void invoke();
+        int getKeyState(int key);
+        int getMouseKeyState(int key);
+        std::pair<double, double> getMousePos();
+        std::pair<double, double> getMouseOffset();
+        std::pair<double, double> getMouseScroll();
         void poll(GLFWwindow* handle);
     private:
-        int _key_states[128];
-        int _cursor_pos_x, _cursor_pos_y;
-        std::unique_ptr<Base> _key_handlers[128];
-        std::unique_ptr<Base> _mouse_handlers[10];
-        std::unique_ptr<Base> _cursor_handler;
+        static void mousePosOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
+        static void mouseScrollOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
+
+        static const size_t KEY_SIZE = 128, MOUSE_SIZE = 10, TWO_STATE_SIZE = 3;
+        int _key_states[KEY_SIZE];
+        int _mouse_states[MOUSE_SIZE];
+        static std::pair<double, double> _two_states[TWO_STATE_SIZE];
+
+        std::unique_ptr<BaseKey> _key_handlers[KEY_SIZE];
+        std::unique_ptr<BaseKey> _mouse_handlers[MOUSE_SIZE];
+        std::unique_ptr<BaseTwoState> _two_state_handlers[TWO_STATE_SIZE];
     };
 };
 
@@ -257,6 +276,7 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 
 
 class GraphTab : public OpenGL::Tab {
+    OpenGL::InputHandler _input_handler;
     // empty vao because it doesn't work otherwise
     OpenGL::VertexArray _empty_vao;
 
