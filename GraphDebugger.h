@@ -1,4 +1,7 @@
 #pragma once
+#include <string_view>
+#include <unordered_map>
+#define NOMINMAX // i hate windows
 #include "include/glad/glad.h"
 #include "glfw/include/GLFW/glfw3.h"
 #include <algorithm>
@@ -55,9 +58,11 @@ namespace OpenGL{
     You can't add shaders after the program's been linked
     */
     class ShaderProgram{
+        std::unordered_map<std::string, int> _uniform_positions;
         bool _is_linked;
         std::vector<Shader> _shaders;
         uint32_t _shader_program_id;
+        int getUniformLocation(const std::string& name);
     public:
         ShaderProgram();
         ~ShaderProgram();
@@ -220,7 +225,7 @@ namespace OpenGL{
         static void mousePosOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
         static void mouseScrollOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
 
-        static const size_t KEY_SIZE = 128, MOUSE_SIZE = 10, TWO_STATE_SIZE = 3;
+        static const size_t KEY_SIZE = GLFW_KEY_LAST + 1, MOUSE_SIZE = GLFW_MOUSE_BUTTON_LAST + 1, TWO_STATE_SIZE = 3;
         int _key_states[KEY_SIZE];
         int _mouse_states[MOUSE_SIZE];
         static std::pair<double, double> _two_states[TWO_STATE_SIZE];

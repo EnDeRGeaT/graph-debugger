@@ -465,6 +465,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         OpenGL::Window& window;
         bool left_mouse_button_pressed = false;
         bool right_mouse_button_pressed = false;
+        double previous_cursor_x = 0, previous_cursor_y = 0;
         size_t index = 0;
         std::optional<size_t> first_highlighted = std::nullopt;
         MouseInput(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
@@ -478,7 +479,10 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             int right = input.getMouseKeyState(GLFW_MOUSE_BUTTON_RIGHT);
 
             auto [cursor_x, cursor_y] = cursor;
-            auto [cursor_dx, cursor_dy] = input.getMouseOffset();
+            double cursor_dx = cursor_x - previous_cursor_x, cursor_dy = cursor_y - previous_cursor_y;
+            previous_cursor_x = cursor_x;
+            previous_cursor_y = cursor_y;
+
             cursor_dx *= tab._zoom;
             cursor_dy *= tab._zoom;
 
@@ -666,9 +670,7 @@ GraphTab::~GraphTab(){
     glDeleteTextures(1, &_texture_atlas_id);
 }
 
-
 std::pair<float, float> GraphTab::StringCoord::alignCoord(float x_size, float y_size, const std::pair<float, float>& movement){
     int convert = static_cast<int>(alignment);
     return std::make_pair(coord.first + movement.first * is_affected_by_movement - x_size / 2 * (convert % 3), coord.second - 10 + movement.second * is_affected_by_movement - y_size / 2 * (convert / 3));
 }
-
