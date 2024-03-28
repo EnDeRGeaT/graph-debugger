@@ -192,13 +192,51 @@ namespace OpenGL{
         virtual void processInput(Window& window) = 0;    
     };
 
+    class InputHandler{
+    public:
+        struct BaseKey{
+        public:
+            virtual void perform(int key_state) = 0;
+        };
+        struct BaseTwoState {
+        public:
+            virtual void perform(std::pair<double, double> two_state) = 0;
+        };
+        InputHandler(GLFWwindow* handle);
+        InputHandler();
+        void attachKey(int key, std::unique_ptr<BaseKey>&& invoker);
+        void attachMouse(int key, std::unique_ptr<BaseKey>&& invoker);
+        void attachMousePos(std::unique_ptr<BaseTwoState>&& invoker);
+        void attachMousePosOffset(std::unique_ptr<BaseTwoState>&& invoker);
+        void attachMouseScrollOffset(std::unique_ptr<BaseTwoState>&& invoker);
+        void invoke();
+        int getKeyState(int key);
+        int getMouseKeyState(int key);
+        std::pair<double, double> getMousePos();
+        std::pair<double, double> getMouseOffset();
+        std::pair<double, double> getMouseScroll();
+        void poll(GLFWwindow* handle);
+    private:
+        static void mousePosOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
+        static void mouseScrollOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
+
+        static const size_t KEY_SIZE = 128, MOUSE_SIZE = 10, TWO_STATE_SIZE = 3;
+        int _key_states[KEY_SIZE];
+        int _mouse_states[MOUSE_SIZE];
+        static std::pair<double, double> _two_states[TWO_STATE_SIZE];
+
+        std::unique_ptr<BaseKey> _key_handlers[KEY_SIZE];
+        std::unique_ptr<BaseKey> _mouse_handlers[MOUSE_SIZE];
+        std::unique_ptr<BaseTwoState> _two_state_handlers[TWO_STATE_SIZE];
+    };
+
     /*
     This class creates a OpenGL window that supports multiple tabs.
     Since OpenGL is very bad at multithreading, it is not recommended to create more than one window.
     */
-
     class Window{
     private:
+        InputHandler _input_handler;
         std::mutex _tab_mutex;
         std::condition_variable _tab_cv;
         GLFWwindow* _handle;
@@ -231,43 +269,6 @@ namespace OpenGL{
         int getWidth() const;
         int getHeight() const;
         GLFWwindow* getHandle() const;
-    };
-
-    class InputHandler{
-    public:
-        struct BaseKey{
-        public:
-            virtual void perform(int key_state) = 0;
-        };
-        struct BaseTwoState {
-        public:
-            virtual void perform(std::pair<double, double> two_state) = 0;
-        };
-        InputHandler(GLFWwindow* handle);
-        void attachKey(int key, std::unique_ptr<BaseKey>&& invoker);
-        void attachMouse(int key, std::unique_ptr<BaseKey>&& invoker);
-        void attachMousePos(std::unique_ptr<BaseTwoState>&& invoker);
-        void attachMousePosOffset(std::unique_ptr<BaseTwoState>&& invoker);
-        void attachMouseScrollOffset(std::unique_ptr<BaseTwoState>&& invoker);
-        void invoke();
-        int getKeyState(int key);
-        int getMouseKeyState(int key);
-        std::pair<double, double> getMousePos();
-        std::pair<double, double> getMouseOffset();
-        std::pair<double, double> getMouseScroll();
-        void poll(GLFWwindow* handle);
-    private:
-        static void mousePosOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
-        static void mouseScrollOffsetCallback(GLFWwindow* handle, double xoffset, double yoffset);
-
-        static const size_t KEY_SIZE = 128, MOUSE_SIZE = 10, TWO_STATE_SIZE = 3;
-        int _key_states[KEY_SIZE];
-        int _mouse_states[MOUSE_SIZE];
-        static std::pair<double, double> _two_states[TWO_STATE_SIZE];
-
-        std::unique_ptr<BaseKey> _key_handlers[KEY_SIZE];
-        std::unique_ptr<BaseKey> _mouse_handlers[MOUSE_SIZE];
-        std::unique_ptr<BaseTwoState> _two_state_handlers[TWO_STATE_SIZE];
     };
 };
 

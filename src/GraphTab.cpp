@@ -1,4 +1,3 @@
-#include "GLFW/glfw3.h"
 #include "GraphDebugger.h"
 #include "glfw/src/internal.h"
 #include <algorithm>
@@ -38,146 +37,8 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
 }
 
 void GraphTab::processInput(OpenGL::Window& window){
-    auto handle = window.getHandle();
-    int width = window.getWidth();
-    int height = window.getHeight();
-
-
-    int left = glfwGetMouseButton(handle, GLFW_MOUSE_BUTTON_LEFT);
-    int right = glfwGetMouseButton(handle, GLFW_MOUSE_BUTTON_RIGHT);
-    double cursor_x, cursor_y;
-
-    glfwGetCursorPos(handle, &cursor_x, &cursor_y);
-    static double previous_cursor_x, previous_cursor_y;
-    double cursor_dx = (cursor_x - previous_cursor_x) * _zoom, cursor_dy = (cursor_y - previous_cursor_y) * _zoom;
-    previous_cursor_x = cursor_x;
-    previous_cursor_y = cursor_y;
-
-    cursor_x -= width / 2.;
-    cursor_y -= height / 2.;
-
-    cursor_x *= _zoom;
-    cursor_y *= _zoom;
-
-    cursor_x -= _movement.first;
-    cursor_y -= _movement.second;
-
-    cursor_x += width / 2.;
-    cursor_y += height / 2.;
-    
-    static bool left_mouse_button_pressed = false;
-    static bool right_mouse_button_pressed = false;
-
-    auto& coords = _node_coords.getData();
-    
-    auto getClickedNode = [rsqr = _default_node_radius * _default_node_radius, &coords, this](float cx, float cy){
-        size_t ind = 0;
-        for(; ind < coords.size(); ind++){
-            auto &[x, y] = coords[ind];
-            double dx = x - cx;
-            double dy = y - cy;
-            if(dx * dx + dy * dy <= rsqr / _zoom){
-                break;
-            }
-        }
-        return ind;
-    };
-
-
-    if(left == GLFW_PRESS){
-        static size_t index = 0;
-        if(!left_mouse_button_pressed){
-            index = getClickedNode(cursor_x, cursor_y);
-            left_mouse_button_pressed = true;
-        }
-        else {
-            if(index < coords.size()){
-                auto &mutable_coords = _node_coords.mutateData();
-                mutable_coords[index].first += cursor_dx;
-                mutable_coords[index].second += cursor_dy;
-                _string_coords[_node_labels[index]].coord = mutable_coords[index];
-            }
-            else{
-                _movement.first += cursor_dx;
-                _movement.second += cursor_dy;
-            }
-        }
-    }
-    else if(left == GLFW_RELEASE){
-        left_mouse_button_pressed = false;
-    }
-
-    if(right == GLFW_PRESS){
-        if(!right_mouse_button_pressed){
-            static std::optional<size_t> first_highlighted = std::nullopt;
-            size_t v = getClickedNode(cursor_x, cursor_y);
-            if(v != coords.size()){
-                if(first_highlighted.has_value()){
-                    std::cerr << "adding edge\n";
-                    addEdge({*first_highlighted, v}, {_default_edge_color, _default_edge_thickness});
-                    _node_properties.mutateData()[*first_highlighted].color = _default_node_color;
-                    first_highlighted = std::nullopt;
-                }
-                else{
-                    std::cerr << "highlighted a node\n";
-                    first_highlighted = v;
-                    _node_properties.mutateData()[v].color = 0x00FF00;
-                }
-            }
-            else{
-                std::cerr << "adding node\n";
-                addNode({cursor_x, cursor_y}, {_default_node_color, _default_node_radius});
-                if(first_highlighted.has_value()) _node_properties.mutateData()[*first_highlighted].color = _default_node_color;
-                first_highlighted = std::nullopt;
-            }
-            right_mouse_button_pressed = true;
-        }
-    }
-    else if(right == GLFW_RELEASE){
-        right_mouse_button_pressed = false;
-    }
-
-// F KEY HANDLING (apply force directed algorithm on the graph)
-    static bool f_pressed = false;
-    int f_key = glfwGetKey(handle, GLFW_KEY_F);
-    if(f_key == GLFW_PRESS){
-        if(!f_pressed && coords.size()){
-            prettifyCoordinates(window);
-        }
-        f_pressed = true;
-    }
-    else if(f_key == GLFW_RELEASE){
-        f_pressed = false;
-    }
-
-// C KEY HANDLING (ask to input the density value)
-    int c_key = glfwGetKey(handle, GLFW_KEY_C);
-    if(c_key == GLFW_PRESS){
-        std::cout << "Please input the new density value: ";
-        std::cin >> _graph_density;
-    }
-
-
-// + KEY HANDLING (zooming in)
-    int equal_key = glfwGetKey(handle, GLFW_KEY_EQUAL);
-    if(equal_key == GLFW_PRESS){
-        _zoom *= 0.95f;
-    }
-
-// - KEY HANDLING (zooming out)
-    int minus_key = glfwGetKey(handle, GLFW_KEY_MINUS);
-    if(minus_key == GLFW_PRESS){
-        _zoom /= 0.95f;
-    }
-
-// t KEY HANDLING (trying things out)
-    int t_key = glfwGetKey(handle, GLFW_KEY_T);
-    if(t_key == GLFW_PRESS){
-        for(size_t i = 0; i < coords.size(); i++){
-            auto [x, y] = _string_coords[_node_labels[i]].alignCoord(sdf_glyph_width * _strings[_node_labels[i]].size(), 20, {0, 0});
-            std::cerr << i << ": " << coords[i].first - x << ' ' << coords[i].second - y << std::endl;
-        }
-    }
+    _input_handler.invoke();
+    _input_handler.poll(window.getHandle());
 }
 
 void GraphTab::draw(OpenGL::Window& window){
@@ -242,198 +103,6 @@ void GraphTab::draw(OpenGL::Window& window){
         glDrawArrays(GL_TRIANGLES, 0, 6 * str.size());
     }
 
-    struct MouseInput : public OpenGL::InputHandler::BaseTwoState {
-        OpenGL::InputHandler& input;
-        GraphTab& tab;
-        OpenGL::Window& window;
-        bool left_mouse_button_pressed = false;
-        bool right_mouse_button_pressed = false;
-        size_t index = 0;
-        std::optional<size_t> first_highlighted = std::nullopt;
-        MouseInput(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
-            input(input_handler),
-            tab(assoc_tab),
-            window(win)
-        {}
-
-        virtual void perform(std::pair<double, double> cursor){
-            int left = input.getMouseKeyState(GLFW_MOUSE_BUTTON_LEFT);
-            int right = input.getMouseKeyState(GLFW_MOUSE_BUTTON_RIGHT);
-
-            auto [cursor_x, cursor_y] = cursor;
-            auto [cursor_dx, cursor_dy] = input.getMouseOffset();
-            cursor_dx *= tab._zoom;
-            cursor_dy *= tab._zoom;
-
-            int width = window.getWidth();
-            int height = window.getHeight();
-
-            cursor_x -= width / 2.;
-            cursor_y -= height / 2.;
-
-            cursor_x *= tab._zoom;
-            cursor_y *= tab._zoom;
-
-            cursor_x -= tab._movement.first;
-            cursor_y -= tab._movement.second;
-
-            cursor_x += width / 2.;
-            cursor_y += height / 2.;
-
-
-            auto& coords = tab._node_coords.getData();
-
-            auto getClickedNode = [rsqr = tab._default_node_radius * tab._default_node_radius, &coords, this](float cx, float cy){
-                size_t ind = 0;
-                for(; ind < coords.size(); ind++){
-                    auto &[x, y] = coords[ind];
-                    double dx = x - cx;
-                    double dy = y - cy;
-                    if(dx * dx + dy * dy <= rsqr / tab._zoom){
-                        break;
-                    }
-                }
-                return ind;
-            };
-
-
-            if(left == GLFW_PRESS){
-                if(!left_mouse_button_pressed){
-                    index = getClickedNode(cursor_x, cursor_y);
-                    left_mouse_button_pressed = true;
-                }
-                else {
-                    if(index < coords.size()){
-                        auto &mutable_coords = tab._node_coords.mutateData();
-                        mutable_coords[index].first += cursor_dx;
-                        mutable_coords[index].second += cursor_dy;
-                        tab._string_coords[tab._node_labels[index]].coord = mutable_coords[index];
-                    }
-                    else{
-                        tab._movement.first += cursor_dx;
-                        tab._movement.second += cursor_dy;
-                    }
-                }
-            }
-            else if(left == GLFW_RELEASE){
-                left_mouse_button_pressed = false;
-            }
-
-            if(right == GLFW_PRESS){
-                if(!right_mouse_button_pressed){
-                    size_t v = getClickedNode(cursor_x, cursor_y);
-                    if(v != coords.size()){
-                        if(first_highlighted.has_value()){
-                            std::cerr << "adding edge\n";
-                            tab.addEdge({*first_highlighted, v}, {tab._default_edge_color, tab._default_edge_thickness});
-                            tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
-                            first_highlighted = std::nullopt;
-                        }
-                        else{
-                            std::cerr << "highlighted a node\n";
-                            first_highlighted = v;
-                            tab._node_properties.mutateData()[v].color = 0x00FF00;
-                        }
-                    }
-                    else{
-                        std::cerr << "adding node\n";
-                        tab.addNode({cursor_x, cursor_y}, {tab._default_node_color, tab._default_node_radius});
-                        if(first_highlighted.has_value()) tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
-                        first_highlighted = std::nullopt;
-                    }
-                    right_mouse_button_pressed = true;
-                }
-            }
-            else if(right == GLFW_RELEASE){
-                right_mouse_button_pressed = false;
-            }
-        }
-    };
-
-
-    struct FKEY : public OpenGL::InputHandler::BaseKey {
-        OpenGL::InputHandler& input;
-        GraphTab& tab;
-        OpenGL::Window& window;
-        bool f_pressed = false;
-        FKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
-            input(input_handler),
-            tab(assoc_tab),
-            window(win)
-        {}
-
-        virtual void perform(int f_key){
-            if(f_key == GLFW_PRESS){
-                if(!f_pressed && tab._node_coords.getData().size()){
-                    tab.prettifyCoordinates(window);
-                }
-                f_pressed = true;
-            }
-            else if(f_key == GLFW_RELEASE){
-                f_pressed = false;
-            }
-        }
-    };
-    
-
-    struct CKEY : public OpenGL::InputHandler::BaseKey {
-        OpenGL::InputHandler& input;
-        GraphTab& tab;
-        OpenGL::Window& window;
-        CKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
-            input(input_handler),
-            tab(assoc_tab),
-            window(win)
-        {}
-
-        virtual void perform(int c_key){
-            if(c_key == GLFW_PRESS){
-                std::cout << "Please input the new density value: ";
-                std::cin >> tab._graph_density;
-            }
-        }
-    };
-
-
-    struct PLUSKEY : public OpenGL::InputHandler::BaseKey {
-        OpenGL::InputHandler& input;
-        GraphTab& tab;
-        OpenGL::Window& window;
-        PLUSKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
-            input(input_handler),
-            tab(assoc_tab),
-            window(win)
-        {}
-
-        virtual void perform(int equal_key){
-            if(equal_key == GLFW_PRESS){
-                tab._zoom *= 0.95f;
-            }
-        }
-    };
-
-    struct MINUSKEY : public OpenGL::InputHandler::BaseKey {
-        OpenGL::InputHandler& input;
-        GraphTab& tab;
-        OpenGL::Window& window;
-        MINUSKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
-            input(input_handler),
-            tab(assoc_tab),
-            window(win)
-        {}
-
-        virtual void perform(int minus_key){
-            if(minus_key == GLFW_PRESS){
-                tab._zoom /= 0.95f;
-            }
-        }
-    };
-
-    MouseInput
-    FKEY
-    CKEY
-    PLUSKEY
-    MINUSKEY
     
 };
 
@@ -789,6 +458,199 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     _empty_vao.bind();
+
+    struct MouseInput : public OpenGL::InputHandler::BaseTwoState {
+        OpenGL::InputHandler& input;
+        GraphTab& tab;
+        OpenGL::Window& window;
+        bool left_mouse_button_pressed = false;
+        bool right_mouse_button_pressed = false;
+        size_t index = 0;
+        std::optional<size_t> first_highlighted = std::nullopt;
+        MouseInput(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+            input(input_handler),
+            tab(assoc_tab),
+            window(win)
+        {}
+
+        virtual void perform(std::pair<double, double> cursor){
+            int left = input.getMouseKeyState(GLFW_MOUSE_BUTTON_LEFT);
+            int right = input.getMouseKeyState(GLFW_MOUSE_BUTTON_RIGHT);
+
+            auto [cursor_x, cursor_y] = cursor;
+            auto [cursor_dx, cursor_dy] = input.getMouseOffset();
+            cursor_dx *= tab._zoom;
+            cursor_dy *= tab._zoom;
+
+            int width = window.getWidth();
+            int height = window.getHeight();
+
+            cursor_x -= width / 2.;
+            cursor_y -= height / 2.;
+
+            cursor_x *= tab._zoom;
+            cursor_y *= tab._zoom;
+
+            cursor_x -= tab._movement.first;
+            cursor_y -= tab._movement.second;
+
+            cursor_x += width / 2.;
+            cursor_y += height / 2.;
+
+
+            auto& coords = tab._node_coords.getData();
+
+            auto getClickedNode = [rsqr = tab._default_node_radius * tab._default_node_radius, &coords, this](float cx, float cy){
+                size_t ind = 0;
+                for(; ind < coords.size(); ind++){
+                    auto &[x, y] = coords[ind];
+                    double dx = x - cx;
+                    double dy = y - cy;
+                    if(dx * dx + dy * dy <= rsqr / tab._zoom){
+                        break;
+                    }
+                }
+                return ind;
+            };
+
+
+            if(left == GLFW_PRESS){
+                if(!left_mouse_button_pressed){
+                    index = getClickedNode(cursor_x, cursor_y);
+                    left_mouse_button_pressed = true;
+                }
+                else {
+                    if(index < coords.size()){
+                        auto &mutable_coords = tab._node_coords.mutateData();
+                        mutable_coords[index].first += cursor_dx;
+                        mutable_coords[index].second += cursor_dy;
+                        tab._string_coords[tab._node_labels[index]].coord = mutable_coords[index];
+                    }
+                    else{
+                        tab._movement.first += cursor_dx;
+                        tab._movement.second += cursor_dy;
+                    }
+                }
+            }
+            else if(left == GLFW_RELEASE){
+                left_mouse_button_pressed = false;
+            }
+
+            if(right == GLFW_PRESS){
+                if(!right_mouse_button_pressed){
+                    size_t v = getClickedNode(cursor_x, cursor_y);
+                    if(v != coords.size()){
+                        if(first_highlighted.has_value()){
+                            std::cerr << "adding edge\n";
+                            tab.addEdge({*first_highlighted, v}, {tab._default_edge_color, tab._default_edge_thickness});
+                            tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
+                            first_highlighted = std::nullopt;
+                        }
+                        else{
+                            std::cerr << "highlighted a node\n";
+                            first_highlighted = v;
+                            tab._node_properties.mutateData()[v].color = 0x00FF00;
+                        }
+                    }
+                    else{
+                        std::cerr << "adding node\n";
+                        tab.addNode({cursor_x, cursor_y}, {tab._default_node_color, tab._default_node_radius});
+                        if(first_highlighted.has_value()) tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
+                        first_highlighted = std::nullopt;
+                    }
+                    right_mouse_button_pressed = true;
+                }
+            }
+            else if(right == GLFW_RELEASE){
+                right_mouse_button_pressed = false;
+            }
+        }
+    };
+
+
+    struct FKEY : public OpenGL::InputHandler::BaseKey {
+        OpenGL::InputHandler& input;
+        GraphTab& tab;
+        OpenGL::Window& window;
+        bool f_pressed = false;
+        FKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+            input(input_handler),
+            tab(assoc_tab),
+            window(win)
+        {}
+
+        virtual void perform(int key){
+            if(key == GLFW_PRESS){
+                if(!f_pressed && tab._node_coords.getData().size()){
+                    tab.prettifyCoordinates(window);
+                }
+                f_pressed = true;
+            }
+            else if(key == GLFW_RELEASE){
+                f_pressed = false;
+            }
+        }
+    };
+    
+
+    struct CKEY : public OpenGL::InputHandler::BaseKey {
+        OpenGL::InputHandler& input;
+        GraphTab& tab;
+        OpenGL::Window& window;
+        CKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+            input(input_handler),
+            tab(assoc_tab),
+            window(win)
+        {}
+
+        virtual void perform(int key){
+            if(key == GLFW_PRESS){
+                std::cout << "Please input the new density value: ";
+                std::cin >> tab._graph_density;
+            }
+        }
+    };
+
+
+    struct PLUSKEY : public OpenGL::InputHandler::BaseKey {
+        OpenGL::InputHandler& input;
+        GraphTab& tab;
+        OpenGL::Window& window;
+        PLUSKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+            input(input_handler),
+            tab(assoc_tab),
+            window(win)
+        {}
+
+        virtual void perform(int key){
+            if(key == GLFW_PRESS){
+                tab._zoom *= 0.95f;
+            }
+        }
+    };
+
+    struct MINUSKEY : public OpenGL::InputHandler::BaseKey {
+        OpenGL::InputHandler& input;
+        GraphTab& tab;
+        OpenGL::Window& window;
+        MINUSKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+            input(input_handler),
+            tab(assoc_tab),
+            window(win)
+        {}
+
+        virtual void perform(int key){
+            if(key == GLFW_PRESS){
+                tab._zoom /= 0.95f;
+            }
+        }
+    };
+
+    _input_handler.attachMousePos(std::make_unique<MouseInput>(_input_handler, *this, window));
+    _input_handler.attachKey(GLFW_KEY_F, std::make_unique<FKEY>(_input_handler, *this, window));
+    _input_handler.attachKey(GLFW_KEY_C, std::make_unique<CKEY>(_input_handler, *this, window));
+    _input_handler.attachKey(GLFW_KEY_EQUAL, std::make_unique<PLUSKEY>(_input_handler, *this, window));
+    _input_handler.attachKey(GLFW_KEY_MINUS, std::make_unique<MINUSKEY>(_input_handler, *this, window));
 }
 
 std::vector<std::pair<float, float>>& GraphTab::getCoordsVector(){

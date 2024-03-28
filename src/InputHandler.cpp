@@ -1,17 +1,31 @@
 #include "GraphDebugger.h"
 
 namespace OpenGL{
+    std::pair<double, double> InputHandler::_two_states[InputHandler::TWO_STATE_SIZE] = {};
+    InputHandler::InputHandler(){
+        for(int key = 0; key < KEY_SIZE; key++){
+            _key_handlers[key] = nullptr;
+        }
+
+        for(int key = 0; key < MOUSE_SIZE; key++){
+            _mouse_handlers[key] = nullptr;
+        }
+
+        for(int key = 0; key < TWO_STATE_SIZE; key++){
+            _two_state_handlers[key] = nullptr;
+            _two_states[key] = {0, 0};
+        }
+    }
+
     InputHandler::InputHandler(GLFWwindow* handle){
         glfwSetCursorPosCallback(handle, mousePosOffsetCallback);
         glfwSetScrollCallback(handle, mouseScrollOffsetCallback);
         for(int key = 0; key < KEY_SIZE; key++){
-            if(_key_handlers[key] == nullptr) continue;
-            _key_handlers[key]->perform(_key_states[key]);
+            _key_handlers[key] = nullptr;
         }
 
         for(int key = 0; key < MOUSE_SIZE; key++){
-            if(_mouse_handlers[key] == nullptr) continue;
-            _mouse_handlers[key]->perform(_mouse_states[key]);
+            _mouse_handlers[key] = nullptr;
         }
 
         for(int key = 0; key < TWO_STATE_SIZE; key++){
@@ -86,19 +100,20 @@ namespace OpenGL{
         for(int key = 0; key < TWO_STATE_SIZE; key++){
             if(_two_state_handlers[key] != nullptr) {
                 _two_state_handlers[key]->perform(_two_states[key]);
+                if(key) _two_states[key] = {0, 0};
             }
-            if(key) _two_states[key] = {0, 0};
         }
     }
 
     void InputHandler::poll(GLFWwindow* handle){
         for(int key = 0; key < KEY_SIZE; key++){
+            if(_key_handlers[key] == nullptr) continue;
             _key_states[key] = glfwGetKey(handle, key);
         }
 
         for(int key = 0; key < MOUSE_SIZE; key++){
             if(_mouse_handlers[key] == nullptr) continue;
-            _mouse_handlers[key]->perform(_mouse_states[key]);
+            _mouse_states[key] = glfwGetMouseButton(handle, key);
         }
     }
 };

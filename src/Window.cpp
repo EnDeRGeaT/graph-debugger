@@ -7,37 +7,8 @@ namespace OpenGL{
     }
 
     void Window::processInput(){
-        int escape_key = glfwGetKey(_handle, GLFW_KEY_ESCAPE);
-        if(escape_key == GLFW_PRESS){
-            glfwSetWindowShouldClose(_handle, true);
-        }
-        
-        static bool left_pressed = false;
-        int left_key = glfwGetKey(_handle, GLFW_KEY_LEFT);
-        if(left_key == GLFW_PRESS && !left_pressed){
-            if(_current_tab != 0) _current_tab--;
-        }
-        left_pressed = left_key == GLFW_PRESS;
-
-        static bool right_pressed = false;
-        int right_key = glfwGetKey(_handle, GLFW_KEY_RIGHT);
-        if(right_key == GLFW_PRESS && !right_pressed){
-            if(_current_tab + 1 != _tabs.size()) _current_tab++;
-        }
-        right_pressed = right_key == GLFW_PRESS;
-
-        static bool q_pressed = false;
-        int q_key = glfwGetKey(_handle, GLFW_KEY_Q);
-        if(q_key == GLFW_PRESS && !q_pressed){
-            if(!_tabs.empty()){
-                deleteTab(_current_tab);
-                if(!_tabs.empty() && _current_tab == _tabs.size()){
-                    _current_tab--;
-                }
-            }
-        }
-        q_pressed = q_key == GLFW_PRESS;
-
+        _input_handler.invoke();
+        _input_handler.poll(_handle);
         if(!_tabs.empty()) _tabs[_current_tab]->processInput(*this);
     }
 
@@ -86,6 +57,82 @@ namespace OpenGL{
             glDebugMessageCallback(glDebugOutput, nullptr);
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
         } 
+        _input_handler = InputHandler(_handle);
+
+        struct ESCAPEKEY : public OpenGL::InputHandler::BaseKey {
+            OpenGL::InputHandler& input;
+            OpenGL::Window& window;
+            ESCAPEKEY(OpenGL::InputHandler& input_handler, OpenGL::Window& win) :
+                input(input_handler),
+                window(win)
+            {}
+
+            virtual void perform(int key){
+                if(key == GLFW_PRESS){
+                    glfwSetWindowShouldClose(window._handle, true);
+                }
+            }
+        };
+
+        struct QKEY : public OpenGL::InputHandler::BaseKey {
+            OpenGL::InputHandler& input;
+            OpenGL::Window& window;
+            bool pressed = false;
+            QKEY(OpenGL::InputHandler& input_handler, OpenGL::Window& win) :
+                input(input_handler),
+                window(win)
+            {}
+
+            virtual void perform(int key){
+                if(key == GLFW_PRESS && !pressed){
+                    if(!window._tabs.empty()){
+                        window.deleteTab(window._current_tab);
+                        if(!window._tabs.empty() && window._current_tab == window._tabs.size()){
+                            window._current_tab--;
+                        }
+                    }
+                }
+                pressed = key == GLFW_PRESS;
+            }
+        };
+
+        struct LEFTARROWKEY : public OpenGL::InputHandler::BaseKey {
+            OpenGL::InputHandler& input;
+            OpenGL::Window& window;
+            bool pressed = false;
+            LEFTARROWKEY(OpenGL::InputHandler& input_handler, OpenGL::Window& win) :
+                input(input_handler),
+                window(win)
+            {}
+
+            virtual void perform(int key){
+                if(key == GLFW_PRESS && !pressed){
+                    if(window._current_tab != 0) window._current_tab--;
+                }
+                pressed = key == GLFW_PRESS;
+            }
+        };
+        struct RIGHTARROWKEY : public OpenGL::InputHandler::BaseKey {
+            OpenGL::InputHandler& input;
+            OpenGL::Window& window;
+            bool pressed = false;
+            RIGHTARROWKEY(OpenGL::InputHandler& input_handler, OpenGL::Window& win) :
+                input(input_handler),
+                window(win)
+            {}
+
+            virtual void perform(int key){
+                if(key == GLFW_PRESS && !pressed){
+                    if(window._current_tab + 1 != window._tabs.size()) window._current_tab++;
+                }
+                pressed = key == GLFW_PRESS;
+            }
+        };
+
+        _input_handler.attachKey(GLFW_KEY_ESCAPE, std::make_unique<ESCAPEKEY>(_input_handler, *this));
+        _input_handler.attachKey(GLFW_KEY_Q, std::make_unique<QKEY>(_input_handler, *this));
+        _input_handler.attachKey(GLFW_KEY_LEFT, std::make_unique<LEFTARROWKEY>(_input_handler, *this));
+        _input_handler.attachKey(GLFW_KEY_RIGHT, std::make_unique<RIGHTARROWKEY>(_input_handler, *this));
     }
 
     void Window::run(){
