@@ -158,6 +158,10 @@ namespace OpenGL{
             return _data;
         }
 
+        bool isProbablyChanged() const {
+            return _probably_changed;
+        }
+
         void dump(){
             if(_probably_changed == false) return;
             _probably_changed = false;
@@ -202,10 +206,12 @@ namespace OpenGL{
         struct BaseKey{
         public:
             virtual void perform(int key_state) = 0;
+            virtual ~BaseKey() = default;
         };
         struct BaseTwoState {
         public:
             virtual void perform(std::pair<double, double> two_state) = 0;
+            virtual ~BaseTwoState() = default;
         };
         InputHandler(GLFWwindow* handle);
         InputHandler();
@@ -345,15 +351,16 @@ class GraphTab : public OpenGL::Tab {
     };
 
     struct StringCoord{
+        int alignment;
+        int is_affected_by_movement;
         std::pair<float, float> coord;
-        StringAlignment alignment;
-        bool is_affected_by_movement;
-        std::pair<float, float> alignCoord(float x_size, float y_size, const std::pair<float, float>& movement);
     };
 
+    bool _was_mutated;
     std::vector<std::string> _strings;
-    std::vector<StringCoord> _string_coords;
+    OpenGL::Buffer<StringCoord> _string_coords;
     OpenGL::Buffer<StringParams> _string_properties;
+    OpenGL::Buffer<uint32_t> _string_prefix_sum;
     uint32_t _default_string_color;
     float _default_string_scale;
 
