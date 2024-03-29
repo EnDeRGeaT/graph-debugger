@@ -16,8 +16,9 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     float width = window.getWidth();
     float height = window.getHeight();
     coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density);
+    auto& scoords = _string_coords.mutateData();
     for(size_t index = 0; index < coords.size(); index++){
-        _string_coords[_node_labels[index]].coord = coords[index];
+        scoords[_node_labels[index]].coord = coords[index];
     }
     auto [min_x, min_y] = coords[0];
     auto [max_x, max_y] = coords[0];
@@ -116,17 +117,12 @@ void GraphTab::draw(OpenGL::Window& window){
     _string_shader.setUniform1ui("letters_in_column", letters_in_column);
     _string_shader.setUniform1f("bearing", glyph_advance);
     _string_shader.setUniform2fv("movement", {_movement.first, _movement.second});
+    _string_shader.setUniform1ui("strings_size", _strings.size());
     
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * _string_prefix_sum.getData().back());
-
-    for(uint32_t string_index = 0; string_index < _strings.size(); string_index++){
-        auto [x, y] = _string_coords[string_index].alignCoord(glyph_advance * str.size(), 23, _movement);
-    }
-
-    
+    glDrawArrays(GL_TRIANGLES, 0, 6 * _string_buffer.getData().size());
 };
 
 void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
@@ -411,7 +407,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             uint lo = 0, hi = strings_size;
             while(lo + 1 < hi){
                 uint mid = (lo + hi) / 2;
-                if(prefix_sum[mid] < char_id){
+                if(prefix_sum[mid - 1] <= char_id){
                     lo = mid;
                 }
                 else{
@@ -440,7 +436,9 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             uint string_index = getStringIndex(char_id);
 
             vec2 leftTex = vec2((chars[char_id] - 32) % letters_in_column, (chars[char_id] - 32) / letters_in_column) * sdf_glyph_size;
-            vec2 left = coord + vec2(bearing * char_id, 0.0);
+            uint prev = (string_index > 0 ? prefix_sum[string_index - 1] : 0);
+            uint sz = prefix_sum[string_index] - prev; 
+            vec2 left = alignCoords(vec2(bearing * sz, 23), string_index) + vec2(bearing * (char_id - prev), 0.0);
 
             color = vec3(parameters[string_index].color & 255, (parameters[string_index].color >> 8) & 255, (parameters[string_index].color >> 16) & 255) / 255;
 
@@ -592,7 +590,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                         auto &mutable_coords = tab._node_coords.mutateData();
                         mutable_coords[index].first += cursor_dx;
                         mutable_coords[index].second += cursor_dy;
-                        tab._string_coords[tab._node_labels[index]].coord = mutable_coords[index];
+                        tab._string_coords.mutateData()[tab._node_labels[index]].coord = mutable_coords[index];
                     }
                     else{
                         tab._movement.first += cursor_dx;
@@ -732,9 +730,4 @@ std::vector<std::pair<uint32_t, uint32_t>>& GraphTab::getEdgesVector(){
 GraphTab::~GraphTab(){
     std::lock_guard lock(mutating_mutex);
     glDeleteTextures(1, &_texture_atlas_id);
-}
-
-std::pair<float, float> GraphTab::StringCoord::alignCoord(float x_size, float y_size, const std::pair<float, float>& movement){
-    int convert = static_cast<int>(alignment);
-    return std::make_pair(coord.first + movement.first * is_affected_by_movement - x_size / 2 * (convert % 3), coord.second - 10 + movement.second * is_affected_by_movement - y_size / 2 * (convert / 3));
 }
