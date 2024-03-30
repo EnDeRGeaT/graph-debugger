@@ -318,6 +318,7 @@ class GraphTab : public OpenGL::Tab {
         float thickness;
     };
     OpenGL::Buffer<EdgeParams> _edge_properties;
+    std::vector<uint32_t> _edge_labels;
     uint32_t _default_edge_color;
     float _default_edge_thickness;
 

@@ -1,8 +1,10 @@
 #include "GraphDebugger.h"
 #include "glfw/src/internal.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <mutex>
+#include <numbers>
 #include <numeric>
 #include <optional>
 #include <random>
@@ -132,9 +134,17 @@ void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
 }
 
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
-    std::cerr << _node_coords.getData().size() << ' ' << "Edge: " << edge.first << ' ' << edge.second << '\n';
     _edges.mutateData().push_back(edge);
     _edge_properties.mutateData().push_back(properties);
+    auto u = _node_coords.getData()[edge.first];
+    auto v = _node_coords.getData()[edge.second];
+    float angle = std::atan2(u.second - v.second, u.first - v.first);
+    if(angle < 0) angle += std::numbers::pi;
+    std::pair<float, float> edge_coord = {(u.first + v.first) / 2 + 1, (u.second + v.second) / 2};
+    StringAlignment
+    if(angle > std::numbers::pi / 2){
+    }
+    _edge_labels.push_back(addString(std::to_string(_edge_labels.size()), , (? StringAlignment::bottom_left : StringAlignment::top_left), true));
 }
 
 size_t GraphTab::addString(std::string str, std::pair<float, float> coord, GraphTab::StringAlignment alignment, bool is_affected_by_movement){
@@ -350,7 +360,6 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             FragColor.a = 1.0;
         }
         )";
-        std::cerr << "second one\n";
         _edge_shader.addShader(vertexstream, GL_VERTEX_SHADER);
         _edge_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
     }    
@@ -480,12 +489,6 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         _string_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
     }
 
-
-    {
-        auto& vec = _edges.mutateData();
-        vec = edges;
-    }
-
     {
         std::mt19937 rng(0);
         auto distr_x = std::uniform_real_distribution<float>(0, window.getWidth());
@@ -493,14 +496,21 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         for(size_t i = 0; i < node_count; i++){
             addNode(std::make_pair(distr_x(rng), distr_y(rng)), {_default_node_color, _default_node_radius});
         }
-        prettifyCoordinates(window);
     }
+
 
     {
-        auto& vec = _edge_properties.mutateData();
-        vec = std::vector<EdgeParams>(_edges.getData().size(), {_default_edge_color, _default_edge_thickness});
+        for(const auto& edge: edges) {
+            addEdge(edge, {_default_edge_color, _default_edge_thickness});
+        }
     }
 
+    // {
+    //     auto& vec = _edge_properties.mutateData();
+    //     vec = std::vector<EdgeParams>(_edges.getData().size(), {_default_edge_color, _default_edge_thickness});
+    // }
+
+    // prettifyCoordinates(window);
 
     glGenTextures(1, &_texture_atlas_id);
     glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
@@ -607,19 +617,16 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                     size_t v = getClickedNode(cursor_x, cursor_y);
                     if(v != coords.size()){
                         if(first_highlighted.has_value()){
-                            std::cerr << "adding edge\n";
                             tab.addEdge({*first_highlighted, v}, {tab._default_edge_color, tab._default_edge_thickness});
                             tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
                             first_highlighted = std::nullopt;
                         }
                         else{
-                            std::cerr << "highlighted a node\n";
                             first_highlighted = v;
                             tab._node_properties.mutateData()[v].color = 0x00FF00;
                         }
                     }
                     else{
-                        std::cerr << "adding node\n";
                         tab.addNode({cursor_x, cursor_y}, {tab._default_node_color, tab._default_node_radius});
                         if(first_highlighted.has_value()) tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
                         first_highlighted = std::nullopt;
