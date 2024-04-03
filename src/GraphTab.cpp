@@ -10,6 +10,7 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <strings.h>
 #include <utility>
 
 
@@ -22,6 +23,11 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     for(size_t index = 0; index < coords.size(); index++){
         scoords[_node_labels[index]].coord = coords[index];
     }
+
+    for(size_t index = 0; index < _edges.getData().size(); index++){
+        updateEdgeLabelPos(index);
+    }
+
     auto [min_x, min_y] = coords[0];
     auto [max_x, max_y] = coords[0];
     for(auto [x, y]: coords){
@@ -130,28 +136,35 @@ void GraphTab::draw(OpenGL::Window& window){
 void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
     _node_coords.mutateData().push_back(coords);
     _node_properties.mutateData().push_back(properties);
-    _node_labels.push_back(addString(std::to_string(_node_labels.size()), coords, StringAlignment::middle_center, true));
+    _node_labels.push_back(addString(std::to_string(_node_labels.size()), { static_cast<int>(StringAlignment::middle_center), true, coords }, {_default_string_color, _default_string_scale}));
 }
 
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
     _edges.mutateData().push_back(edge);
     _edge_properties.mutateData().push_back(properties);
+    _edge_labels.push_back(addString(std::to_string(_edge_labels.size()), {static_cast<int>(StringAlignment::top_left), true, {0, 0}}, {_default_string_color, 0.5 * _default_string_scale}));
+    updateEdgeLabelPos(_edges.getData().size() - 1);
+}
+
+void GraphTab::updateEdgeLabelPos(uint32_t edge_index){
+    auto edge = _edges.getData()[edge_index];
     auto u = _node_coords.getData()[edge.first];
     auto v = _node_coords.getData()[edge.second];
     float angle = std::atan2(u.second - v.second, u.first - v.first);
     if(angle < 0) angle += std::numbers::pi;
-    std::pair<float, float> edge_coord = {(u.first + v.first) / 2 + 1, (u.second + v.second) / 2};
-    StringAlignment
-    if(angle > std::numbers::pi / 2){
+    if(angle < std::numbers::pi / 2){
+        _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::bottom_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
     }
-    _edge_labels.push_back(addString(std::to_string(_edge_labels.size()), , (? StringAlignment::bottom_left : StringAlignment::top_left), true));
+    else{
+        _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::top_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
+    }
 }
 
-size_t GraphTab::addString(std::string str, std::pair<float, float> coord, GraphTab::StringAlignment alignment, bool is_affected_by_movement){
+size_t GraphTab::addString(std::string str, StringCoord coordinates, StringParams parameters){
     _was_mutated = true;
     _strings.push_back(std::move(str));
-    _string_properties.mutateData().emplace_back(_default_string_color, _default_string_scale);
-    _string_coords.mutateData().emplace_back(static_cast<int>(alignment), is_affected_by_movement, coord);
+    _string_properties.mutateData().push_back(parameters);
+    _string_coords.mutateData().push_back(coordinates);
     return _strings.size() - 1;
 }
 
@@ -408,8 +421,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         vec2 alignCoords(vec2 size, uint string_index){
             return coordinates[string_index].coord + 
                     movement * coordinates[string_index].is_affected_by_movement -
-                    vec2(coordinates[string_index].alignment % 3, coordinates[string_index].alignment / 3) * size / 2 +
-                    vec2(0, -10);
+                    vec2(coordinates[string_index].alignment % 3, coordinates[string_index].alignment / 3) * size / 2;
         }
 
         uint getStringIndex(uint char_id){
@@ -447,7 +459,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             vec2 leftTex = vec2((chars[char_id] - 32) % letters_in_column, (chars[char_id] - 32) / letters_in_column) * sdf_glyph_size;
             uint prev = (string_index > 0 ? prefix_sum[string_index - 1] : 0);
             uint sz = prefix_sum[string_index] - prev; 
-            vec2 left = alignCoords(vec2(bearing * sz, 23), string_index) + vec2(bearing * (char_id - prev), 0.0);
+            vec2 left = alignCoords(vec2(bearing * sz, sdf_glyph_size.y - 14) * parameters[string_index].scale, string_index) + vec2(bearing * parameters[string_index].scale * (char_id - prev), 0.0);
 
             color = vec3(parameters[string_index].color & 255, (parameters[string_index].color >> 8) & 255, (parameters[string_index].color >> 16) & 255) / 255;
 
@@ -601,6 +613,9 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                         mutable_coords[index].first += cursor_dx;
                         mutable_coords[index].second += cursor_dy;
                         tab._string_coords.mutateData()[tab._node_labels[index]].coord = mutable_coords[index];
+                        for(uint32_t index = 0; index < tab._edges.getData().size(); index++){
+                            tab.updateEdgeLabelPos(index);
+                        }
                     }
                     else{
                         tab._movement.first += cursor_dx;

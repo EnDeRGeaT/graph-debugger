@@ -323,6 +323,7 @@ class GraphTab : public OpenGL::Tab {
     float _default_edge_thickness;
 
     void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
+    void updateEdgeLabelPos(uint32_t edge_index);
 
     // text related
     const int letters_in_row = 8, letters_in_column = 12;
@@ -365,7 +366,7 @@ class GraphTab : public OpenGL::Tab {
     uint32_t _default_string_color;
     float _default_string_scale;
 
-    size_t addString(std::string str, std::pair<float, float> coord, StringAlignment alignment, bool is_affected_by_movement = false);
+    size_t addString(std::string str, StringCoord coordinates, StringParams parameters);
     std::string& mutateString(size_t index);
     StringCoord& mutateStringCoord(size_t index);
     StringParams& mutateStringProperty(size_t index);
