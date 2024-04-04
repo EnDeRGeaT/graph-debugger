@@ -289,6 +289,7 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 
 class GraphTab : public OpenGL::Tab {
     OpenGL::InputHandler _input_handler;
+
     // empty vao because it doesn't work otherwise
     OpenGL::VertexArray _empty_vao;
 
@@ -306,12 +307,11 @@ class GraphTab : public OpenGL::Tab {
     float _default_node_thickness;
 
     void addNode(std::pair<int, int> coords, NodeParams properties);
+
     void prettifyCoordinates(OpenGL::Window& window);
 
-    
     // edges related
     OpenGL::ShaderProgram _edge_shader;
-    OpenGL::VertexArray  _line;
     OpenGL::Buffer<std::pair<uint32_t, uint32_t>> _edges;
     struct EdgeParams{
         uint32_t color;

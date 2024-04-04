@@ -142,7 +142,7 @@ void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
     _edges.mutateData().push_back(edge);
     _edge_properties.mutateData().push_back(properties);
-    _edge_labels.push_back(addString(std::to_string(_edge_labels.size()), {static_cast<int>(StringAlignment::top_left), true, {0, 0}}, {_default_string_color, 0.5 * _default_string_scale}));
+    _edge_labels.push_back(addString(std::to_string(_edge_labels.size()), {static_cast<int>(StringAlignment::top_left), true, {0, 0}}, {_default_string_color, 0.6 * _default_string_scale}));
     updateEdgeLabelPos(_edges.getData().size() - 1);
 }
 
@@ -501,28 +501,18 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         _string_shader.addShader(fragmentstream, GL_FRAGMENT_SHADER);
     }
 
-    {
-        std::mt19937 rng(0);
-        auto distr_x = std::uniform_real_distribution<float>(0, window.getWidth());
-        auto distr_y = std::uniform_real_distribution<float>(0, window.getHeight());
-        for(size_t i = 0; i < node_count; i++){
-            addNode(std::make_pair(distr_x(rng), distr_y(rng)), {_default_node_color, _default_node_radius});
-        }
+    std::mt19937 rng(0);
+    auto distr_x = std::uniform_real_distribution<float>(0, window.getWidth());
+    auto distr_y = std::uniform_real_distribution<float>(0, window.getHeight());
+    for(size_t i = 0; i < node_count; i++){
+        addNode(std::make_pair(distr_x(rng), distr_y(rng)), {_default_node_color, _default_node_radius});
     }
 
-
-    {
-        for(const auto& edge: edges) {
-            addEdge(edge, {_default_edge_color, _default_edge_thickness});
-        }
+    for(const auto& edge: edges) {
+        addEdge(edge, {_default_edge_color, _default_edge_thickness});
     }
 
-    // {
-    //     auto& vec = _edge_properties.mutateData();
-    //     vec = std::vector<EdgeParams>(_edges.getData().size(), {_default_edge_color, _default_edge_thickness});
-    // }
-
-    // prettifyCoordinates(window);
+    prettifyCoordinates(window);
 
     glGenTextures(1, &_texture_atlas_id);
     glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
