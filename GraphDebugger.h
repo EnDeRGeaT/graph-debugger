@@ -1,9 +1,9 @@
 #pragma once
-#include <unordered_map>
 #define NOMINMAX // i hate windows
 #include "include/glad/glad.h"
 #include "glfw/include/GLFW/glfw3.h"
 #include <algorithm>
+#include <unordered_map>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -295,8 +295,9 @@ class GraphTab : public OpenGL::Tab {
 
     // node related
     OpenGL::ShaderProgram _node_shader; // shader program for drawing nodes
+    OpenGL::Buffer<std::pair<float, float>> _node_coords;
+
     struct NodeParams{
-        std::pair<float, float> coord;
         uint32_t color;
         float radius;
     };
@@ -316,6 +317,10 @@ class GraphTab : public OpenGL::Tab {
     // edges related
     OpenGL::ShaderProgram _edge_shader;
     OpenGL::Buffer<std::pair<uint32_t, uint32_t>> _edges;
+
+    // OpenGL::Buffer<uint32_t> _available_edge_indices;
+    std::vector<uint32_t> _deleted_edge_indices;
+
     struct EdgeParams{
         uint32_t color;
         float thickness;
@@ -327,6 +332,7 @@ class GraphTab : public OpenGL::Tab {
 
     void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
     void updateEdgeLabelPos(uint32_t edge_index);
+    void deleteEdge(uint32_t edge_index);
 
     // text related
     const int letters_in_row = 8, letters_in_column = 12;
@@ -338,12 +344,15 @@ class GraphTab : public OpenGL::Tab {
     OpenGL::ShaderProgram _string_shader;
     OpenGL::Buffer<uint32_t> _string_buffer;
 
-    struct StringParams{
-        std::pair<float, float> coord;
-        int alignment;
-        int is_affected_by_movement;
+    struct StringParams {
         uint32_t color;
         float scale;
+    };
+
+    struct StringCoord {
+        int alignment;
+        int is_affected_by_movement;
+        std::pair<float, float> coord;
     };
     
     enum class StringAlignment {
@@ -358,18 +367,19 @@ class GraphTab : public OpenGL::Tab {
         bottom_right = 8,
     };
 
-
     bool _was_mutated;
     
     std::vector<std::string> _strings;
+    OpenGL::Buffer<StringCoord> _string_coords;
     OpenGL::Buffer<StringParams> _string_properties;
     OpenGL::Buffer<uint32_t> _string_prefix_sum;
 
     uint32_t _default_string_color;
     float _default_string_scale;
 
-    uint32_t addString(std::string str, StringParams parameters);
+    uint32_t addString(std::string str, StringCoord coordinates, StringParams parameters);
     std::string& mutateString(size_t index);
+    StringCoord& mutateStringCoord(size_t index);
     StringParams& mutateStringProperty(size_t index);
 
     // graph view related

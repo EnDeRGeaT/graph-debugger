@@ -1,5 +1,4 @@
 #include "GraphDebugger.h"
-#include "glfw/src/internal.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -17,15 +16,19 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     auto& coords = _node_coords.mutateData();
     float width = static_cast<float>(window.getWidth());
     float height = static_cast<float>(window.getHeight());
-    coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density);
+    coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density); // deleted edges are still accounted
+
     auto& scoords = _string_coords.mutateData();
     for(size_t index = 0; index < coords.size(); index++){
         scoords[_node_labels[index]].coord = coords[index];
     }
 
-    for(uint32_t index = 0; index < _edges.getData().size(); index++){
+    for(uint32_t index = 0; index < _edges.getData().size(); index++) {
         updateEdgeLabelPos(index);
     }
+    // for(const auto& index: _available_edge_indices.getData()){
+    //     updateEdgeLabelPos(index);
+    // }
 
     auto [min_x, min_y] = coords[0];
     auto [max_x, max_y] = coords[0];
@@ -35,6 +38,7 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
         min_y = std::min(min_y, y);
         max_y = std::max(max_y, y);
     }
+
     // i need some value z, such that mn + z == res - mx - z
     _movement.first = (width - max_x - min_x) / 2;
     _movement.second = (height - max_y - min_y) / 2;
@@ -76,7 +80,11 @@ void GraphTab::draw(OpenGL::Window& window){
     _string_prefix_sum.bind();
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _string_prefix_sum.getID());
 
+    // _available_edge_indices.bind();
+    // glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, _available_edge_indices.getID());
+
     _node_coords.dump();
+    // _available_edge_indices.dump();
     _edges.dump();
     _edge_properties.dump();
 
@@ -84,6 +92,7 @@ void GraphTab::draw(OpenGL::Window& window){
     _edge_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
     _edge_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     _edge_shader.setUniform1f("zoom", _zoom);
+    // glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_available_edge_indices.getData().size()));
     glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_edges.getData().size()));
 
     _node_properties.dump();
@@ -143,28 +152,49 @@ void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
 }
 
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
-    _edges.mutateData().push_back(edge);
-    _edge_properties.mutateData().push_back(properties);
+    if(_deleted_edge_indices.empty()) {
+        // _available_edge_indices.mutateData().push_back(static_cast<uint32_t>(_available_edge_indices.getData().size()));
+        _edges.mutateData().push_back(edge);
+        _edge_properties.mutateData().push_back(properties);
+    }
+    else {
+        uint32_t ind = _deleted_edge_indices.back();
+        _deleted_edge_indices.pop_back();
+        _edges.mutateData()[ind] = edge;
+        _edge_properties.mutateData()[ind] = properties;
+    }
 
-    auto str = std::to_string(_edge_labels.size());
-    auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, {0, 0} };
-    auto str_property = StringParams{_default_string_color, 0.6f * _default_string_scale};
-    _edge_labels.push_back(addString(str, str_coord, str_property));
-    updateEdgeLabelPos(static_cast<uint32_t>(_edges.getData().size()) - 1);
+    // auto str = std::to_string(_edge_labels.size());
+    // auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, {0, 0} };
+    // auto str_property = StringParams{_default_string_color, 0.6f * _default_string_scale};
+    // _edge_labels.push_back(addString(str, str_coord, str_property));
+    // updateEdgeLabelPos(static_cast<uint32_t>(_edges.getData().size()) - 1);
 }
 
-void GraphTab::updateEdgeLabelPos(uint32_t edge_index){
+void GraphTab::updateEdgeLabelPos(uint32_t edge_index){ 
+    if(_edge_labels.size() <= edge_index) return;
+
     auto edge = _edges.getData()[edge_index];
     auto u = _node_coords.getData()[edge.first];
     auto v = _node_coords.getData()[edge.second];
+
     float angle = std::atan2(u.second - v.second, u.first - v.first);
     if(angle < 0) angle += static_cast<float>(std::numbers::pi);
+
     if(angle < std::numbers::pi / 2){
         _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::bottom_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
     }
     else{
         _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::top_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
     }
+}
+
+void GraphTab::deleteEdge(uint32_t edge_index) {
+    // auto& indices = _available_edge_indices.mutateData();
+    // auto to_del = std::find(indices.begin(), indices.end(), edge_index);
+    // if(to_del == indices.end()) return;
+    // _deleted_edge_indices.push_back(*to_del);
+    // indices.erase(to_del);
 }
 
 uint32_t GraphTab::addString(std::string str, StringCoord coordinates, StringParams parameters){
@@ -198,6 +228,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _default_node_thickness(5),
     _edge_shader(),
     _edges(GL_SHADER_STORAGE_BUFFER),
+    // _available_edge_indices(GL_SHADER_STORAGE_BUFFER),
     _edge_properties(GL_SHADER_STORAGE_BUFFER),
     _default_edge_color(0x0),
     _default_edge_thickness(5),
@@ -322,6 +353,10 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             EdgeParams parameters[];
         };
 
+        // layout (std430, binding=8) buffer available_edges {
+        //     uint edge_indices[];
+        // };
+
         out vec3 color;
 
         float direction[6] = {
@@ -342,6 +377,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         }
 
         void main() {
+            // uint edge_id = edge_indices[gl_VertexID / 6];
             int edge_id = gl_VertexID / 6;
             int vertice_id = gl_VertexID % 6;
 
@@ -730,11 +766,28 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         }
     };
 
+    struct DKEY : public OpenGL::InputHandler::BaseKey {
+        OpenGL::InputHandler& input;
+        GraphTab& tab;
+        OpenGL::Window& window;
+        DKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+            input(input_handler),
+            tab(assoc_tab),
+            window(win)
+        {}
+
+        virtual void perform(int key){
+            // auto last = tab._available_edge_indices.getData().back();
+            // tab.deleteEdge(last);
+        }
+    };
+
     _input_handler.attachMousePos(std::make_unique<MouseInput>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_F, std::make_unique<FKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_C, std::make_unique<CKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_EQUAL, std::make_unique<PLUSKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_MINUS, std::make_unique<MINUSKEY>(_input_handler, *this, window));
+    _input_handler.attachKey(GLFW_KEY_D, std::make_unique<DKEY>(_input_handler, *this, window));
 }
 
 std::vector<std::pair<float, float>>& GraphTab::getCoordsVector(){
