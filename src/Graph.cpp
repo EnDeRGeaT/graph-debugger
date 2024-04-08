@@ -303,7 +303,7 @@ std::optional<std::vector<uint32_t>> Graph::findHamiltonianCycle(){
             }
         }
     }
-    uint32_t big = masks.size() - 1;
+    uint32_t big = static_cast<uint32_t>(masks.size()) - 1;
     for(uint32_t v = 0; v + 1 < _sz; v++){
         uint32_t mask = big ^ (1 << v);
         if(masks[mask][v].has_value() && adj_mat[v][_sz - 1].has_value()){

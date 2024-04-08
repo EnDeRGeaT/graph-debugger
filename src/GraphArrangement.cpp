@@ -7,8 +7,9 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 	const float eps = 1e-9f;
 	float x_len = x_range.second - x_range.first;
 	float y_len = y_range.second - y_range.first;
-	float C = std::sqrt(std::min(x_len, y_len) / coords.size());
-    float size_pw = std::max(coords.size() * 10., std::pow(coords.size(), 1.3));
+    float graph_size = static_cast<float>(coords.size());
+	float C = std::sqrt(std::min(x_len, y_len) / graph_size);
+    float size_pw = std::max(graph_size * 10.f, std::pow(graph_size, 1.3f));
 	density *= size_pw;
 	// int iterations = 100;
 
@@ -24,7 +25,7 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 		return density * C * C / d;
 	};
 	auto updateStep = [progress = 0](float step, float current_energy, float previous_energy) mutable {
-		const float t = 0.9;
+		const float t = 0.9f;
 		if (current_energy < previous_energy) {
 			progress++;
 			if (progress >= 5) {

@@ -1,5 +1,4 @@
 #pragma once
-#include <string_view>
 #include <unordered_map>
 #define NOMINMAX // i hate windows
 #include "include/glad/glad.h"
@@ -288,20 +287,24 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 
 
 class GraphTab : public OpenGL::Tab {
+    // the input handler
     OpenGL::InputHandler _input_handler;
 
     // empty vao because it doesn't work otherwise
     OpenGL::VertexArray _empty_vao;
 
     // node related
-    OpenGL::ShaderProgram _node_shader;
-    OpenGL::Buffer<std::pair<float, float>> _node_coords;
+    OpenGL::ShaderProgram _node_shader; // shader program for drawing nodes
     struct NodeParams{
+        std::pair<float, float> coord;
         uint32_t color;
         float radius;
     };
     OpenGL::Buffer<NodeParams> _node_properties;
+
+    // i don't know if i should add this one to the NodeParams, like, it just doesn't make sense to? Because I will send this to the GPU, mmmm
     std::vector<uint32_t> _node_labels; // labels are indexes to their respective strings in _strings array 
+
     uint32_t _default_node_color;
     float _default_node_radius;
     float _default_node_thickness;
@@ -336,6 +339,9 @@ class GraphTab : public OpenGL::Tab {
     OpenGL::Buffer<uint32_t> _string_buffer;
 
     struct StringParams{
+        std::pair<float, float> coord;
+        int alignment;
+        int is_affected_by_movement;
         uint32_t color;
         float scale;
     };
@@ -352,23 +358,18 @@ class GraphTab : public OpenGL::Tab {
         bottom_right = 8,
     };
 
-    struct StringCoord{
-        int alignment;
-        int is_affected_by_movement;
-        std::pair<float, float> coord;
-    };
 
     bool _was_mutated;
+    
     std::vector<std::string> _strings;
-    OpenGL::Buffer<StringCoord> _string_coords;
     OpenGL::Buffer<StringParams> _string_properties;
     OpenGL::Buffer<uint32_t> _string_prefix_sum;
+
     uint32_t _default_string_color;
     float _default_string_scale;
 
-    size_t addString(std::string str, StringCoord coordinates, StringParams parameters);
+    uint32_t addString(std::string str, StringParams parameters);
     std::string& mutateString(size_t index);
-    StringCoord& mutateStringCoord(size_t index);
     StringParams& mutateStringProperty(size_t index);
 
     // graph view related
@@ -379,10 +380,10 @@ class GraphTab : public OpenGL::Tab {
     void processInput(OpenGL::Window& win);
     void draw(OpenGL::Window& win);
 public:
-    std::mutex mutating_mutex;
+    std::mutex mutating_mutex; 
 
-    std::vector<std::pair<float, float>>& getCoordsVector();
-    std::vector<std::pair<uint32_t, uint32_t>>& getEdgesVector();
+    std::vector<std::pair<float, float>>& getCoordsVector(); // bad, should be refactored
+    std::vector<std::pair<uint32_t, uint32_t>>& getEdgesVector(); // bad, should be refactored
 
     GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, OpenGL::Window& window);
     ~GraphTab();
@@ -434,7 +435,6 @@ public:
         }
     }
 
-    
     template<typename T>
     void dfs(uint32_t node, T& f){
         std::vector<char> used(_sz);

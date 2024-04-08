@@ -179,7 +179,7 @@ namespace OpenGL{
     }
 
     void Window::deleteTab(size_t index){
-        _tabs.erase(_tabs.begin() + index);
+        _tabs.erase(_tabs.begin() + static_cast<uint32_t>(index));
     }
 
     int Window::getWidth() const {

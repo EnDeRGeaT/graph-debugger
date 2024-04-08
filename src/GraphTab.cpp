@@ -10,21 +10,20 @@
 #include <random>
 #include <sstream>
 #include <string>
-#include <strings.h>
 #include <utility>
 
 
 void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     auto& coords = _node_coords.mutateData();
-    float width = window.getWidth();
-    float height = window.getHeight();
+    float width = static_cast<float>(window.getWidth());
+    float height = static_cast<float>(window.getHeight());
     coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density);
     auto& scoords = _string_coords.mutateData();
     for(size_t index = 0; index < coords.size(); index++){
         scoords[_node_labels[index]].coord = coords[index];
     }
 
-    for(size_t index = 0; index < _edges.getData().size(); index++){
+    for(uint32_t index = 0; index < _edges.getData().size(); index++){
         updateEdgeLabelPos(index);
     }
 
@@ -40,8 +39,8 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     _movement.first = (width - max_x - min_x) / 2;
     _movement.second = (height - max_y - min_y) / 2;
 
-    const float percent_x = width * 0.90; 
-    const float percent_y = height * 0.90; 
+    const float percent_x = width * 0.90F; 
+    const float percent_y = height * 0.90F; 
 
     _zoom = std::max({(max_x - min_x) / percent_x, (max_y - min_y) / percent_y, _zoom});
 }
@@ -82,19 +81,19 @@ void GraphTab::draw(OpenGL::Window& window){
     _edge_properties.dump();
 
     _edge_shader.use();
-    _edge_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
+    _edge_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
     _edge_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     _edge_shader.setUniform1f("zoom", _zoom);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * _edges.getData().size());
+    glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_edges.getData().size()));
 
     _node_properties.dump();
 
     _node_shader.use();
-    _node_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
+    _node_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
     _node_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     _node_shader.setUniform1f("bound", _default_node_thickness);
     _node_shader.setUniform1f("zoom", _zoom);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * _node_coords.getData().size());
+    glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_node_coords.getData().size()));
 
     if(_was_mutated){
         _was_mutated = false;
@@ -102,7 +101,7 @@ void GraphTab::draw(OpenGL::Window& window){
         auto& buffer = _string_buffer.mutateData();
         psum.resize(_strings.size());
         for(size_t i = 0; i < _strings.size(); i++){
-            psum[i] = _strings[i].size();
+            psum[i] = static_cast<uint32_t>(_strings[i].size());
         }
         std::partial_sum(psum.begin(), psum.end(), psum.begin());
         buffer.resize(psum.back());
@@ -119,31 +118,39 @@ void GraphTab::draw(OpenGL::Window& window){
     _string_prefix_sum.dump();
 
     _string_shader.use();
-    _string_shader.setUniform2fv("resolution", {1.0f * window.getWidth(), 1.0f *  window.getHeight()});
+    _string_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
     _string_shader.setUniform1f("zoom", _zoom);
-    _string_shader.setUniform2fv("sdf_glyph_size", {1.0f * sdf_glyph_width, 1.0f * sdf_glyph_height});
-    _string_shader.setUniform1ui("letters_in_column", letters_in_column);
-    _string_shader.setUniform1f("bearing", glyph_advance);
+    _string_shader.setUniform2fv("sdf_glyph_size", {1.0F * static_cast<float>(sdf_glyph_width), 1.0F * static_cast<float>(sdf_glyph_height)});
+    _string_shader.setUniform1ui("letters_in_column", static_cast<uint32_t>(letters_in_column));
+    _string_shader.setUniform1f("bearing", static_cast<float>(glyph_advance));
     _string_shader.setUniform2fv("movement", {_movement.first, _movement.second});
-    _string_shader.setUniform1ui("strings_size", _strings.size());
+    _string_shader.setUniform1ui("strings_size", static_cast<uint32_t>(_strings.size()));
     
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture_atlas_id);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * _string_buffer.getData().size());
+    glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_string_buffer.getData().size()));
 };
 
 void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
-    _node_coords.mutateData().push_back(coords);
+    _node_coords.mutateData().emplace_back(coords);
     _node_properties.mutateData().push_back(properties);
-    _node_labels.push_back(addString(std::to_string(_node_labels.size()), { static_cast<int>(StringAlignment::middle_center), true, coords }, {_default_string_color, _default_string_scale}));
+
+    auto str = std::to_string(_node_labels.size());
+    auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, coords };
+    auto str_property = StringParams{_default_string_color, _default_string_scale};
+    _node_labels.push_back(addString(str, str_coord, str_property));
 }
 
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
     _edges.mutateData().push_back(edge);
     _edge_properties.mutateData().push_back(properties);
-    _edge_labels.push_back(addString(std::to_string(_edge_labels.size()), {static_cast<int>(StringAlignment::top_left), true, {0, 0}}, {_default_string_color, 0.6 * _default_string_scale}));
-    updateEdgeLabelPos(_edges.getData().size() - 1);
+
+    auto str = std::to_string(_edge_labels.size());
+    auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, {0, 0} };
+    auto str_property = StringParams{_default_string_color, 0.6f * _default_string_scale};
+    _edge_labels.push_back(addString(str, str_coord, str_property));
+    updateEdgeLabelPos(static_cast<uint32_t>(_edges.getData().size()) - 1);
 }
 
 void GraphTab::updateEdgeLabelPos(uint32_t edge_index){
@@ -151,7 +158,7 @@ void GraphTab::updateEdgeLabelPos(uint32_t edge_index){
     auto u = _node_coords.getData()[edge.first];
     auto v = _node_coords.getData()[edge.second];
     float angle = std::atan2(u.second - v.second, u.first - v.first);
-    if(angle < 0) angle += std::numbers::pi;
+    if(angle < 0) angle += static_cast<float>(std::numbers::pi);
     if(angle < std::numbers::pi / 2){
         _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::bottom_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
     }
@@ -160,12 +167,12 @@ void GraphTab::updateEdgeLabelPos(uint32_t edge_index){
     }
 }
 
-size_t GraphTab::addString(std::string str, StringCoord coordinates, StringParams parameters){
+uint32_t GraphTab::addString(std::string str, StringCoord coordinates, StringParams parameters){
     _was_mutated = true;
     _strings.push_back(std::move(str));
     _string_properties.mutateData().push_back(parameters);
     _string_coords.mutateData().push_back(coordinates);
-    return _strings.size() - 1;
+    return static_cast<uint32_t>(_strings.size()) - 1;
 }
 
 std::string& GraphTab::mutateString(size_t index) {
@@ -190,7 +197,6 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _default_node_radius(30),
     _default_node_thickness(5),
     _edge_shader(),
-    _line(),
     _edges(GL_SHADER_STORAGE_BUFFER),
     _edge_properties(GL_SHADER_STORAGE_BUFFER),
     _default_edge_color(0x0),
@@ -502,8 +508,8 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     }
 
     std::mt19937 rng(0);
-    auto distr_x = std::uniform_real_distribution<float>(0, window.getWidth());
-    auto distr_y = std::uniform_real_distribution<float>(0, window.getHeight());
+    auto distr_x = std::uniform_real_distribution<float>(0, static_cast<float>(window.getWidth()));
+    auto distr_y = std::uniform_real_distribution<float>(0, static_cast<float>(window.getHeight()));
     for(size_t i = 0; i < node_count; i++){
         addNode(std::make_pair(distr_x(rng), distr_y(rng)), {_default_node_color, _default_node_radius});
     }
@@ -554,7 +560,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             int right = input.getMouseKeyState(GLFW_MOUSE_BUTTON_RIGHT);
 
             auto [cursor_x, cursor_y] = cursor;
-            double cursor_dx = cursor_x - previous_cursor_x, cursor_dy = cursor_y - previous_cursor_y;
+            float cursor_dx = static_cast<float>(cursor_x - previous_cursor_x), cursor_dy = static_cast<float>(cursor_y - previous_cursor_y);
             previous_cursor_x = cursor_x;
             previous_cursor_y = cursor_y;
 
@@ -576,12 +582,12 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             cursor_x += width / 2.;
             cursor_y += height / 2.;
 
-            auto& coords = tab._node_coords.getData();
+            const auto& coords = tab._node_coords.getData();
 
-            auto getClickedNode = [rsqr = tab._default_node_radius * tab._default_node_radius, &coords, this](float cx, float cy){
+            auto getClickedNode = [rsqr = tab._default_node_radius * tab._default_node_radius, &coords, this](double cx, double cy){
                 size_t ind = 0;
                 for(; ind < coords.size(); ind++){
-                    auto &[x, y] = coords[ind];
+                    const auto &[x, y] = coords[ind];
                     double dx = x - cx;
                     double dy = y - cy;
                     if(dx * dx + dy * dy <= rsqr / tab._zoom){
@@ -603,8 +609,8 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                         mutable_coords[index].first += cursor_dx;
                         mutable_coords[index].second += cursor_dy;
                         tab._string_coords.mutateData()[tab._node_labels[index]].coord = mutable_coords[index];
-                        for(uint32_t index = 0; index < tab._edges.getData().size(); index++){
-                            tab.updateEdgeLabelPos(index);
+                        for(uint32_t edge_index = 0; edge_index < tab._edges.getData().size(); edge_index++){
+                            tab.updateEdgeLabelPos(edge_index);
                         }
                     }
                     else{

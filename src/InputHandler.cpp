@@ -137,36 +137,43 @@ namespace OpenGL{
 
     std::pair<double, double> InputHandler::_two_states[InputHandler::TWO_STATE_SIZE] = {};
     InputHandler::InputHandler(){
-        for(int key = 0; key < KEY_SIZE; key++){
+        for(auto key: GLFW_KEYS){
             _key_handlers[key] = nullptr;
             _key_states[key] = 0;
         }
 
-        for(int key = 0; key < MOUSE_SIZE; key++){
+        for(auto key: GLFW_MOUSE_BUTTONS){
             _mouse_handlers[key] = nullptr;
             _mouse_states[key] = 0;
         }
 
-        for(int key = 0; key < TWO_STATE_SIZE; key++){
-            _two_state_handlers[key] = nullptr;
-            _two_states[key] = {0, 0};
+        for(size_t key = 0; key < TWO_STATE_SIZE; key++){
+            if(_two_state_handlers[key] != nullptr) {
+                _two_state_handlers[key]->perform(_two_states[key]);
+            }
+            if(key) _two_states[key] = {0, 0};
         }
     }
 
     InputHandler::InputHandler(GLFWwindow* handle){
         glfwSetCursorPosCallback(handle, mousePosOffsetCallback);
         glfwSetScrollCallback(handle, mouseScrollOffsetCallback);
-        for(int key = 0; key < KEY_SIZE; key++){
+
+        for(auto key: GLFW_KEYS){
             _key_handlers[key] = nullptr;
+            _key_states[key] = 0;
         }
 
-        for(int key = 0; key < MOUSE_SIZE; key++){
+        for(auto key: GLFW_MOUSE_BUTTONS){
             _mouse_handlers[key] = nullptr;
+            _mouse_states[key] = 0;
         }
 
-        for(int key = 0; key < TWO_STATE_SIZE; key++){
-            _two_state_handlers[key] = nullptr;
-            _two_states[key] = {0, 0};
+        for(size_t key = 0; key < TWO_STATE_SIZE; key++){
+            if(_two_state_handlers[key] != nullptr) {
+                _two_state_handlers[key]->perform(_two_states[key]);
+            }
+            if(key) _two_states[key] = {0, 0};
         }
     }
 
@@ -221,17 +228,17 @@ namespace OpenGL{
     }
 
     void InputHandler::invoke(){
-        for(int key = 0; key < KEY_SIZE; key++){
+        for(auto key: GLFW_KEYS){
             if(_key_handlers[key] == nullptr) continue;
             _key_handlers[key]->perform(_key_states[key]);
         }
 
-        for(int key = 0; key < MOUSE_SIZE; key++){
+        for(auto key: GLFW_MOUSE_BUTTONS){
             if(_mouse_handlers[key] == nullptr) continue;
             _mouse_handlers[key]->perform(_mouse_states[key]);
         }
 
-        for(int key = 0; key < TWO_STATE_SIZE; key++){
+        for(size_t key = 0; key < TWO_STATE_SIZE; key++){
             if(_two_state_handlers[key] != nullptr) {
                 _two_state_handlers[key]->perform(_two_states[key]);
             }
