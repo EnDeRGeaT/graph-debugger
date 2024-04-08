@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <fcntl.h>
 #include <mutex>
 #include <numbers>
 #include <numeric>
@@ -23,12 +24,9 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
         scoords[_node_labels[index]].coord = coords[index];
     }
 
-    for(uint32_t index = 0; index < _edges.getData().size(); index++) {
+    for(const auto& index: _available_edge_indices.getData()){
         updateEdgeLabelPos(index);
     }
-    // for(const auto& index: _available_edge_indices.getData()){
-    //     updateEdgeLabelPos(index);
-    // }
 
     auto [min_x, min_y] = coords[0];
     auto [max_x, max_y] = coords[0];
@@ -56,46 +54,31 @@ void GraphTab::processInput(OpenGL::Window& window){
 
 void GraphTab::draw(OpenGL::Window& window){
 
-    _node_coords.bind();
+    // EDGE DRAWING
+    _node_coords.dump();
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _node_coords.getID());
 
-    _edges.bind();
+    _edges.dump();
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _edges.getID());
 
-    _node_properties.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _node_properties.getID());
-
-    _edge_properties.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _edge_properties.getID());
-    
-    _string_buffer.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, _string_buffer.getID());
-
-    _string_properties.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, _string_properties.getID());
-
-    _string_coords.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, _string_coords.getID());
-
-    _string_prefix_sum.bind();
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, _string_prefix_sum.getID());
-
-    // _available_edge_indices.bind();
-    // glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, _available_edge_indices.getID());
-
-    _node_coords.dump();
-    // _available_edge_indices.dump();
-    _edges.dump();
     _edge_properties.dump();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _edge_properties.getID());
+
+    // _available_edge_indices.dump();
+    // glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _available_edge_indices.getID());
 
     _edge_shader.use();
     _edge_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
     _edge_shader.setUniform2fv("movement", {_movement.first, _movement.second});
     _edge_shader.setUniform1f("zoom", _zoom);
-    // glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_available_edge_indices.getData().size()));
-    glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_edges.getData().size()));
+    std::cerr << _available_edge_indices.getData().size() << std::endl;
+    glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_available_edge_indices.getData().size()));
+    // glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_edges.getData().size()));
 
+
+    // NODE DRAWING
     _node_properties.dump();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _node_properties.getID());
 
     _node_shader.use();
     _node_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
@@ -104,6 +87,7 @@ void GraphTab::draw(OpenGL::Window& window){
     _node_shader.setUniform1f("zoom", _zoom);
     glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_node_coords.getData().size()));
 
+    // TEXT DRAWING
     if(_was_mutated){
         _was_mutated = false;
         auto& psum = _string_prefix_sum.mutateData();
@@ -121,10 +105,18 @@ void GraphTab::draw(OpenGL::Window& window){
         }
     }
 
-    _string_properties.dump();
+
     _string_buffer.dump();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _string_buffer.getID());
+
+    _string_properties.dump();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, _string_properties.getID());
+
     _string_coords.dump();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, _string_coords.getID());
+
     _string_prefix_sum.dump();
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, _string_prefix_sum.getID());
 
     _string_shader.use();
     _string_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
@@ -153,13 +145,14 @@ void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
 
 void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
     if(_deleted_edge_indices.empty()) {
-        // _available_edge_indices.mutateData().push_back(static_cast<uint32_t>(_available_edge_indices.getData().size()));
+        _available_edge_indices.mutateData().push_back(static_cast<uint32_t>(_available_edge_indices.getData().size()));
         _edges.mutateData().push_back(edge);
         _edge_properties.mutateData().push_back(properties);
     }
     else {
         uint32_t ind = _deleted_edge_indices.back();
         _deleted_edge_indices.pop_back();
+        _available_edge_indices.mutateData().push_back(ind);
         _edges.mutateData()[ind] = edge;
         _edge_properties.mutateData()[ind] = properties;
     }
@@ -190,11 +183,11 @@ void GraphTab::updateEdgeLabelPos(uint32_t edge_index){
 }
 
 void GraphTab::deleteEdge(uint32_t edge_index) {
-    // auto& indices = _available_edge_indices.mutateData();
-    // auto to_del = std::find(indices.begin(), indices.end(), edge_index);
-    // if(to_del == indices.end()) return;
-    // _deleted_edge_indices.push_back(*to_del);
-    // indices.erase(to_del);
+    auto& indices = _available_edge_indices.mutateData();
+    auto to_del = std::find(indices.begin(), indices.end(), edge_index);
+    if(to_del == indices.end()) return;
+    _deleted_edge_indices.push_back(*to_del);
+    indices.erase(to_del);
 }
 
 uint32_t GraphTab::addString(std::string str, StringCoord coordinates, StringParams parameters){
@@ -228,7 +221,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _default_node_thickness(5),
     _edge_shader(),
     _edges(GL_SHADER_STORAGE_BUFFER),
-    // _available_edge_indices(GL_SHADER_STORAGE_BUFFER),
+    _available_edge_indices(GL_SHADER_STORAGE_BUFFER),
     _edge_properties(GL_SHADER_STORAGE_BUFFER),
     _default_edge_color(0x0),
     _default_edge_thickness(5),
@@ -258,7 +251,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             vec2 vertex_coords[];
         };
 
-        layout (std430, binding=2) buffer node_parameters {
+        layout (std430, binding=1) buffer node_parameters {
             NodeParams parameters[];
         };
 
@@ -349,11 +342,11 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             uvec2 edges[];
         };
 
-        layout (std430, binding=3) buffer edge_parameters {
+        layout (std430, binding=2) buffer edge_parameters {
             EdgeParams parameters[];
         };
 
-        // layout (std430, binding=8) buffer available_edges {
+        // layout (std430, binding=3) buffer available_edges {
         //     uint edge_indices[];
         // };
 
@@ -434,19 +427,19 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             vec2 coord;
         };
         
-        layout (std430, binding=4) buffer strings {
+        layout (std430, binding=0) buffer strings {
             uint chars[];
         };
 
-        layout (std430, binding=5) buffer string_properties {
+        layout (std430, binding=1) buffer string_properties {
             StringParams parameters[];
         };
 
-        layout (std430, binding=6) buffer string_coords {
+        layout (std430, binding=2) buffer string_coords {
             StringCoord coordinates[];
         };
         
-        layout (std430, binding=7) buffer string_psum {
+        layout (std430, binding=3) buffer string_psum {
             uint prefix_sum[];
         };
 
@@ -770,6 +763,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         OpenGL::InputHandler& input;
         GraphTab& tab;
         OpenGL::Window& window;
+        bool d_pressed = false;
         DKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
             input(input_handler),
             tab(assoc_tab),
@@ -777,8 +771,11 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         {}
 
         virtual void perform(int key){
-            // auto last = tab._available_edge_indices.getData().back();
-            // tab.deleteEdge(last);
+            if(key && d_pressed == false) {
+                auto last = tab._available_edge_indices.getData().back();
+                tab.deleteEdge(last);
+            }
+            d_pressed = key;
         }
     };
 

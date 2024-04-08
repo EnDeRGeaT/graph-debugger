@@ -318,7 +318,7 @@ class GraphTab : public OpenGL::Tab {
     OpenGL::ShaderProgram _edge_shader;
     OpenGL::Buffer<std::pair<uint32_t, uint32_t>> _edges;
 
-    // OpenGL::Buffer<uint32_t> _available_edge_indices;
+    OpenGL::Buffer<uint32_t> _available_edge_indices;
     std::vector<uint32_t> _deleted_edge_indices;
 
     struct EdgeParams{
