@@ -301,7 +301,10 @@ class GraphTab : public OpenGL::Tab {
         uint32_t color;
         float radius;
     };
+
     OpenGL::Buffer<NodeParams> _node_properties;
+    OpenGL::Buffer<uint32_t> _available_node_indices;
+    std::vector<uint32_t> _deleted_node_indices;
 
     // i don't know if i should add this one to the NodeParams, like, it just doesn't make sense to? Because I will send this to the GPU, mmmm
     std::vector<uint32_t> _node_labels; // labels are indexes to their respective strings in _strings array 
@@ -311,6 +314,7 @@ class GraphTab : public OpenGL::Tab {
     float _default_node_thickness;
 
     void addNode(std::pair<int, int> coords, NodeParams properties);
+    void deleteNode(uint32_t node_index);
 
     void prettifyCoordinates(OpenGL::Window& window);
 
@@ -373,14 +377,17 @@ class GraphTab : public OpenGL::Tab {
     OpenGL::Buffer<StringCoord> _string_coords;
     OpenGL::Buffer<StringParams> _string_properties;
     OpenGL::Buffer<uint32_t> _string_prefix_sum;
+    OpenGL::Buffer<uint32_t> _available_string_indices;
+    std::vector<uint32_t> _deleted_string_indices;
 
     uint32_t _default_string_color;
     float _default_string_scale;
 
     uint32_t addString(std::string str, StringCoord coordinates, StringParams parameters);
-    std::string& mutateString(size_t index);
-    StringCoord& mutateStringCoord(size_t index);
-    StringParams& mutateStringProperty(size_t index);
+    std::string& mutateString(size_t string_index);
+    StringCoord& mutateStringCoord(size_t string_index);
+    StringParams& mutateStringProperty(size_t string_index);
+    void deleteString(size_t string_index);
 
     // graph view related
     float _zoom;
