@@ -313,7 +313,7 @@ class GraphTab : public OpenGL::Tab {
     float _default_node_radius;
     float _default_node_thickness;
 
-    void addNode(std::pair<int, int> coords, NodeParams properties);
+    void addNode(std::pair<int, int> coords, NodeParams properties, std::string label = "");
     void deleteNode(uint32_t node_index);
 
     void prettifyCoordinates(OpenGL::Window& window);

@@ -2,7 +2,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <fcntl.h>
 #include <mutex>
 #include <numbers>
 #include <numeric>
@@ -138,7 +137,7 @@ void GraphTab::draw(OpenGL::Window& window){
     glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_string_buffer.getData().size()));
 };
 
-void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
+void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties, std::string label){
     auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, coords };
     auto str_property = StringParams{_default_string_color, _default_string_scale};
 
@@ -146,8 +145,7 @@ void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
         _available_node_indices.mutateData().push_back(static_cast<uint32_t>(_available_node_indices.getData().size()));
         _node_coords.mutateData().emplace_back(coords);
         _node_properties.mutateData().push_back(properties);
-        auto str = std::to_string(_node_labels.size());
-        _node_labels.push_back(addString(str, str_coord, str_property));
+        _node_labels.push_back(addString(std::move(label), str_coord, str_property));
     }
     else {
         uint32_t ind = _deleted_node_indices.back();
@@ -155,8 +153,7 @@ void GraphTab::addNode(std::pair<int, int> coords, NodeParams properties){
         _available_node_indices.mutateData().push_back(ind);
         _node_coords.mutateData()[ind] = coords;
         _node_properties.mutateData()[ind] = properties;
-        auto str = std::to_string(ind);
-        _node_labels[ind] = addString(str, str_coord, str_property);
+        _node_labels[ind] = addString(std::move(label), str_coord, str_property);
     }
 }
 
@@ -338,7 +335,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
             center = (vertex_coords[node_id] - resolution / 2 + movement) / zoom + resolution / 2;
 
-            color = vec3(parameters[node_id].vertex_color & 255, (parameters[node_id].vertex_color >> 8) & 255, (parameters[node_id].vertex_color >> 16) & 255) / 255;
+            color = vec3((parameters[node_id].vertex_color >> 16) & 255, (parameters[node_id].vertex_color >> 8) & 255, (parameters[node_id].vertex_color) & 255) / 255;
 
             radius = parameters[node_id].circle_radius;
 
@@ -433,7 +430,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             uint edge_id = edge_indices[gl_VertexID / 6];
             int vertice_id = gl_VertexID % 6;
 
-            color = vec3(parameters[edge_id].edge_color & 255, (parameters[edge_id].edge_color >> 8) & 255, (parameters[edge_id].edge_color >> 16) & 255) / 255;
+            color = vec3((parameters[edge_id].edge_color >> 16) & 255, (parameters[edge_id].edge_color >> 8) & 255, (parameters[edge_id].edge_color) & 255) / 255;
 
             vec2 v = vertex_coords[edges[edge_id].x] + movement;
             vec2 u = vertex_coords[edges[edge_id].y] + movement;
@@ -552,14 +549,15 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             uint char_id = gl_VertexID / 6;
             uint vertice_id = gl_VertexID % 6;
 
-            uint string_index = string_indices[getStringIndex(char_id)];
+            uint pref_sum_index = getStringIndex(char_id);
+            uint string_index = string_indices[pref_sum_index];
 
             vec2 leftTex = vec2((chars[char_id] - 32) % letters_in_column, (chars[char_id] - 32) / letters_in_column) * sdf_glyph_size;
-            uint prev = (string_index > 0 ? prefix_sum[string_index - 1] : 0);
-            uint sz = prefix_sum[string_index] - prev; 
+            uint prev = (pref_sum_index > 0 ? prefix_sum[pref_sum_index - 1] : 0);
+            uint sz = prefix_sum[pref_sum_index] - prev; 
             vec2 left = alignCoords(vec2(bearing * sz, sdf_glyph_size.y - 14) * parameters[string_index].scale, string_index) + vec2(bearing * parameters[string_index].scale * (char_id - prev), 0.0);
 
-            color = vec3(parameters[string_index].color & 255, (parameters[string_index].color >> 8) & 255, (parameters[string_index].color >> 16) & 255) / 255;
+            color = vec3((parameters[string_index].color >> 16) & 255, (parameters[string_index].color >> 8) & 255, (parameters[string_index].color) & 255) / 255;
 
             vec2 sq = sdf_glyph_size * parameters[string_index].scale;
             
@@ -603,7 +601,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     auto distr_x = std::uniform_real_distribution<float>(0, static_cast<float>(window.getWidth()));
     auto distr_y = std::uniform_real_distribution<float>(0, static_cast<float>(window.getHeight()));
     for(size_t i = 0; i < node_count; i++){
-        addNode(std::make_pair(distr_x(rng), distr_y(rng)), {_default_node_color, _default_node_radius});
+        addNode(std::make_pair(distr_x(rng), distr_y(rng)), {_default_node_color, _default_node_radius}, std::to_string(i));
     }
 
     for(const auto& edge: edges) {
@@ -640,7 +638,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         bool right_mouse_button_pressed = false;
         double previous_cursor_x = 0, previous_cursor_y = 0;
         uint32_t index = 0;
-        std::optional<size_t> first_highlighted = std::nullopt;
+        std::vector<uint32_t> highlighted = {};
         MouseInput(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
             input(input_handler),
             tab(assoc_tab),
@@ -716,28 +714,39 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
             if(right == GLFW_PRESS){
                 if(!right_mouse_button_pressed){
-                    size_t v = getClickedNode(cursor_x, cursor_y);
+                    uint32_t v = getClickedNode(cursor_x, cursor_y);
                     if(v != coords.size()){
-                        if(first_highlighted.has_value()){
-                            tab.addEdge({*first_highlighted, v}, {tab._default_edge_color, tab._default_edge_thickness});
-                            tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
-                            first_highlighted = std::nullopt;
-                        }
-                        else{
-                            first_highlighted = v;
-                            tab._node_properties.mutateData()[v].color = 0x00FF00;
-                        }
+                        highlighted.push_back(v);
+                        tab._node_properties.mutateData()[v].color = 0x0000FF;
                     }
                     else{
-                        tab.addNode({cursor_x, cursor_y}, {tab._default_node_color, tab._default_node_radius});
-                        if(first_highlighted.has_value()) tab._node_properties.mutateData()[*first_highlighted].color = tab._default_node_color;
-                        first_highlighted = std::nullopt;
+                        tab.addNode({cursor_x, cursor_y}, {0x00FF00, tab._default_node_radius});
                     }
                     right_mouse_button_pressed = true;
                 }
             }
             else if(right == GLFW_RELEASE){
                 right_mouse_button_pressed = false;
+            }
+
+            auto n_key = input.getKeyState(GLFW_KEY_N);
+            if(n_key) {
+                auto& properties = tab._node_properties.mutateData();
+                for(const auto& node_index: highlighted){
+                    if(properties[node_index].color == 0x00FF00) {
+                        tab.mutateString(tab._node_labels[node_index]) = std::to_string(node_index);
+                    }
+                    properties[node_index].color = tab._default_node_color;
+                }
+                highlighted.clear();
+            }
+
+            auto d_key = input.getKeyState(GLFW_KEY_D);
+            if(d_key) {
+                for(const auto &node_index: highlighted) {
+                    tab.deleteNode(node_index);
+                }
+                highlighted.clear();
             }
         }
     };
@@ -821,23 +830,36 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         }
     };
 
-    struct DKEY : public OpenGL::InputHandler::BaseKey {
+    struct OKEY : public OpenGL::InputHandler::BaseKey {
         OpenGL::InputHandler& input;
         GraphTab& tab;
         OpenGL::Window& window;
-        bool d_pressed = false;
-        DKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+        bool pressed = false;
+        OKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
             input(input_handler),
             tab(assoc_tab),
             window(win)
         {}
 
         virtual void perform(int key){
-            if(key && d_pressed == false) {
-                auto last = tab._available_node_indices.getData().back();
-                tab.deleteNode(last);
+            if(key && !pressed){
+                std::cerr << "string: ";
+                for(const auto& ch: tab._string_buffer.getData()){
+                    std::cerr << char(ch) << ' ';
+                }
+                std::cerr << std::endl;
+                std::cerr << "available: ";
+                for(const auto& ch: tab._available_string_indices.getData()){
+                    std::cerr << ch << ' ';
+                }
+                std::cerr << std::endl;
+                std::cerr << "psum: ";
+                for(const auto& ch: tab._string_prefix_sum.getData()){
+                    std::cerr << ch << ' ';
+                }
+                std::cerr << std::endl;
             }
-            d_pressed = key;
+            pressed = key;
         }
     };
 
@@ -846,7 +868,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _input_handler.attachKey(GLFW_KEY_C, std::make_unique<CKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_EQUAL, std::make_unique<PLUSKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_MINUS, std::make_unique<MINUSKEY>(_input_handler, *this, window));
-    _input_handler.attachKey(GLFW_KEY_D, std::make_unique<DKEY>(_input_handler, *this, window));
+    _input_handler.attachKey(GLFW_KEY_O, std::make_unique<OKEY>(_input_handler, *this, window));
 }
 
 std::vector<std::pair<float, float>>& GraphTab::getCoordsVector(){
