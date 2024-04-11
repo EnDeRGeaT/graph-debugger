@@ -5,7 +5,6 @@
 #include <mutex>
 #include <numbers>
 #include <numeric>
-#include <optional>
 #include <random>
 #include <sstream>
 #include <string>
@@ -173,7 +172,7 @@ void GraphTab::deleteNode(uint32_t node_index) {
     indices.erase(to_del);
 }
 
-void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties){
+void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties, std::string label){
     if(_deleted_edge_indices.empty()) {
         _available_edge_indices.mutateData().push_back(static_cast<uint32_t>(_available_edge_indices.getData().size()));
         _edges.mutateData().push_back(edge);
@@ -187,11 +186,10 @@ void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties
         _edge_properties.mutateData()[ind] = properties;
     }
 
-    // auto str = std::to_string(_edge_labels.size());
-    // auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, {0, 0} };
-    // auto str_property = StringParams{_default_string_color, 0.6f * _default_string_scale};
-    // _edge_labels.push_back(addString(str, str_coord, str_property));
-    // updateEdgeLabelPos(static_cast<uint32_t>(_edges.getData().size()) - 1);
+    auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, {0, 0} };
+    auto str_property = StringParams{_default_string_color, 0.6f * _default_string_scale};
+    _edge_labels.push_back(addString(label, str_coord, str_property));
+    updateEdgeLabelPos(static_cast<uint32_t>(_edges.getData().size()) - 1);
 }
 
 void GraphTab::updateEdgeLabelPos(uint32_t edge_index){ 
@@ -639,6 +637,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         double previous_cursor_x = 0, previous_cursor_y = 0;
         uint32_t index = 0;
         std::vector<uint32_t> highlighted = {};
+        std::vector<uint32_t> new_nodes = {};
         MouseInput(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
             input(input_handler),
             tab(assoc_tab),
@@ -716,11 +715,14 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                 if(!right_mouse_button_pressed){
                     uint32_t v = getClickedNode(cursor_x, cursor_y);
                     if(v != coords.size()){
-                        highlighted.push_back(v);
-                        tab._node_properties.mutateData()[v].color = 0x0000FF;
+                        if(std::find(highlighted.begin(), highlighted.end(), v) == highlighted.end()) {
+                            highlighted.push_back(v);
+                            tab._node_properties.mutateData()[v].color = 0x0000FF;
+                        }
                     }
                     else{
                         tab.addNode({cursor_x, cursor_y}, {0x00FF00, tab._default_node_radius});
+                        new_nodes.push_back(available_nodes.back());
                     }
                     right_mouse_button_pressed = true;
                 }
@@ -732,19 +734,39 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             auto n_key = input.getKeyState(GLFW_KEY_N);
             if(n_key) {
                 auto& properties = tab._node_properties.mutateData();
-                for(const auto& node_index: highlighted){
-                    if(properties[node_index].color == 0x00FF00) {
-                        tab.mutateString(tab._node_labels[node_index]) = std::to_string(node_index);
-                    }
+                for(const auto& node_index: new_nodes){
+                    auto& str = tab.mutateString(tab._node_labels[node_index]);
+                    str = std::to_string(node_index);
                     properties[node_index].color = tab._default_node_color;
                 }
-                highlighted.clear();
+                new_nodes.clear();
             }
 
             auto d_key = input.getKeyState(GLFW_KEY_D);
             if(d_key) {
                 for(const auto &node_index: highlighted) {
                     tab.deleteNode(node_index);
+                }
+                highlighted.clear();
+            }
+
+            auto e_key = input.getKeyState(GLFW_KEY_E);
+            if(e_key) {
+                if(highlighted.size() == 2) {
+                    uint32_t v = highlighted[0];
+                    uint32_t u = highlighted[1];
+                    auto& properties = tab._node_properties.mutateData();
+                    tab.addEdge({v, u}, {tab._default_edge_color, tab._default_edge_thickness});
+                    properties[v].color = properties[u].color = tab._default_node_color;
+                    highlighted.clear();
+                }
+            }
+
+            auto t_key = input.getKeyState(GLFW_KEY_T);
+            if(t_key) {
+                auto& properties = tab._node_properties.mutateData();
+                for(const auto &node_index: highlighted) {
+                    properties[node_index].color = tab._default_node_color;
                 }
                 highlighted.clear();
             }

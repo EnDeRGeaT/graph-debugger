@@ -334,7 +334,7 @@ class GraphTab : public OpenGL::Tab {
     uint32_t _default_edge_color;
     float _default_edge_thickness;
 
-    void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties);
+    void addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties, std::string str = "");
     void updateEdgeLabelPos(uint32_t edge_index);
     void deleteEdge(uint32_t edge_index);
 
