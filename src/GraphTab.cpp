@@ -46,12 +46,13 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
 }
 
 void GraphTab::processInput(OpenGL::Window& window){
+    std::lock_guard lock(_mutating_mutex);
     _input_handler.invoke();
     _input_handler.poll(window.getHandle());
 }
 
 void GraphTab::draw(OpenGL::Window& window){
-
+    std::lock_guard lock(_mutating_mutex);
     // EDGE DRAWING
     _node_coords.dump();
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, _node_coords.getID());
@@ -762,13 +763,48 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                 }
             }
 
-            auto t_key = input.getKeyState(GLFW_KEY_T);
-            if(t_key) {
-                auto& properties = tab._node_properties.mutateData();
-                for(const auto &node_index: highlighted) {
-                    properties[node_index].color = tab._default_node_color;
+            auto x_key = input.getKeyState(GLFW_KEY_X);
+            if(x_key) {
+                if(highlighted.size() == 2) {
+                    uint32_t v = highlighted[0];
+                    uint32_t u = highlighted[1];
+                    auto& properties = tab._node_properties.mutateData();
+                    const auto& edges = tab._edges.getData();
+                    std::vector<uint32_t> to_del;
+                    for(const auto& edge_index: tab._available_edge_indices.getData()) {
+                        auto [qu, qv] = edges[edge_index];
+                        if(qu == v && qv == u) {
+                            to_del.push_back(edge_index);
+                        }
+                        else if(qu == u && qv == v) {
+                            to_del.push_back(edge_index);
+                        }
+                    }
+                    for(const auto& edge_index: to_del) {
+                        tab.deleteEdge(edge_index);
+                    }
+                    properties[v].color = properties[u].color = tab._default_node_color;
+                    highlighted.clear();
                 }
+            }
+
+            auto c_key = input.getKeyState(GLFW_KEY_C);
+            if(c_key) {
+                for(const auto &node_index: new_nodes) {
+                    tab.deleteNode(node_index);
+                }
+                new_nodes.clear();
                 highlighted.clear();
+
+                auto& node_props = tab._node_properties.mutateData();
+                for(const auto &node_index: tab._available_node_indices.getData()) {
+                    node_props[node_index] = {tab._default_node_color, tab._default_node_radius};
+                }
+
+                auto& edge_props = tab._edge_properties.mutateData();
+                for(const auto &edge_index: tab._available_edge_indices.getData()) {
+                    edge_props[edge_index] = {tab._default_edge_color, tab._default_edge_thickness};
+                }
             }
         }
     };
@@ -798,26 +834,6 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         }
     };
     
-
-    struct CKEY : public OpenGL::InputHandler::BaseKey {
-        OpenGL::InputHandler& input;
-        GraphTab& tab;
-        OpenGL::Window& window;
-        CKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
-            input(input_handler),
-            tab(assoc_tab),
-            window(win)
-        {}
-
-        virtual void perform(int key){
-            if(key == GLFW_PRESS){
-                std::cout << "Please input the new density value: ";
-                std::cin >> tab._graph_density;
-            }
-        }
-    };
-
-
     struct PLUSKEY : public OpenGL::InputHandler::BaseKey {
         OpenGL::InputHandler& input;
         GraphTab& tab;
@@ -887,21 +903,91 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
     _input_handler.attachMousePos(std::make_unique<MouseInput>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_F, std::make_unique<FKEY>(_input_handler, *this, window));
-    _input_handler.attachKey(GLFW_KEY_C, std::make_unique<CKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_EQUAL, std::make_unique<PLUSKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_MINUS, std::make_unique<MINUSKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_O, std::make_unique<OKEY>(_input_handler, *this, window));
 }
 
-std::vector<std::pair<float, float>>& GraphTab::getCoordsVector(){
-    return _node_coords.mutateData();
+// there is a possibility that sizes will differ (which is ehh, horrible)
+// i will update Graph class to avoid that at some point
+void GraphTab::setNodeCoords(const std::vector<std::pair<float, float>>& coords){ 
+    std::lock_guard lock(_mutating_mutex);
+    auto& current_coords = _node_coords.mutateData(); 
+    const auto& node_indices = _available_node_indices.getData();
+    for(uint32_t i = 0; i < std::min(node_indices.size(), _node_labels.size()); i++) {
+        current_coords[node_indices[i]] = coords[i];
+    }
+    for(const auto& edge_index: _available_edge_indices.getData()){
+        updateEdgeLabelPos(edge_index);
+    }
 }
 
-std::vector<std::pair<uint32_t, uint32_t>>& GraphTab::getEdgesVector(){
-    return _edges.mutateData();
+void GraphTab::setNodeColors(const std::vector<uint32_t>& colors){
+    std::lock_guard lock(_mutating_mutex);
+    const auto& node_indices = _available_node_indices.getData();
+    auto& properties = _node_properties.mutateData(); 
+    for(uint32_t i = 0; i < std::min(node_indices.size(), colors.size()); i++) {
+        properties[node_indices[i]].color = colors[i];
+    }
+}
+
+void GraphTab::setNodeLabels(const std::vector<std::string>& labels){
+    std::lock_guard lock(_mutating_mutex);
+    const auto& node_indices = _available_node_indices.getData();
+    for(uint32_t i = 0; i < std::min(node_indices.size(), _node_labels.size()); i++) {
+        auto& str = mutateString(_node_labels[node_indices[i]]);
+        str = labels[i];
+    }
+}
+
+std::vector<std::pair<uint32_t, uint32_t>> GraphTab::getEdges() const{
+    std::vector<std::pair<uint32_t, uint32_t>> edges;
+    const auto& e = _edges.getData();
+    for(const auto& edge_index: _available_edge_indices.getData()) {
+        edges.push_back(e[edge_index]);
+    }
+    return edges;
+}
+
+void GraphTab::setEdges(const std::vector<std::pair<uint32_t, uint32_t>>& edges){
+    std::lock_guard lock(_mutating_mutex);
+    auto cpy = _available_edge_indices.getData();
+    for(const auto& edge_index: cpy) {
+        deleteEdge(edge_index);
+    }
+    for(auto edge: edges) {
+        addEdge(edge, {_default_edge_color, _default_edge_thickness});
+    }
+}
+
+void GraphTab::setEdgeColors(const std::vector<uint32_t>& colors){
+    std::lock_guard lock(_mutating_mutex);
+    const auto& edge_indices = _available_edge_indices.getData();
+    auto& properties = _edge_properties.mutateData(); 
+    for(uint32_t i = 0; i < std::min(edge_indices.size(), colors.size()); i++) {
+        properties[edge_indices[i]].color = colors[i];
+    }
+}
+
+void GraphTab::setEdgeLabels(const std::vector<std::string>& labels){
+    std::lock_guard lock(_mutating_mutex);
+    const auto& edge_indices = _available_edge_indices.getData();
+    for(uint32_t i = 0; i < std::min(labels.size(), edge_indices.size()); i++) {
+        auto& str = mutateString(_edge_labels[edge_indices[i]]);
+        str = labels[i];
+    }
+}
+
+void GraphTab::setEdgesThickness(const std::vector<float>& thicknesses){
+    std::lock_guard lock(_mutating_mutex);
+    const auto& edge_indices =_available_edge_indices.getData();
+    auto& properties = _edge_properties.mutateData(); 
+    for(uint32_t i = 0; i < std::min(edge_indices.size(), thicknesses.size()); i++) {
+        properties[edge_indices[i]].thickness = thicknesses[i];
+    }
 }
 
 GraphTab::~GraphTab(){
-    std::lock_guard lock(mutating_mutex);
+    std::lock_guard lock(_mutating_mutex);
     glDeleteTextures(1, &_texture_atlas_id);
 }

@@ -396,15 +396,24 @@ class GraphTab : public OpenGL::Tab {
 
     void processInput(OpenGL::Window& win);
     void draw(OpenGL::Window& win);
-public:
-    std::mutex mutating_mutex; 
 
-    std::vector<std::pair<float, float>>& getCoordsVector(); // bad, should be refactored
-    std::vector<std::pair<uint32_t, uint32_t>>& getEdgesVector(); // bad, should be refactored
+    std::mutex _mutating_mutex;
+public:
 
     GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, OpenGL::Window& window);
     ~GraphTab();
+
+    void setNodeCoords(const std::vector<std::pair<float, float>>& coords);
+    void setNodeColors(const std::vector<uint32_t>& colors);
+    void setNodeLabels(const std::vector<std::string>& labels);
+
+    std::vector<std::pair<uint32_t, uint32_t>> getEdges() const;
+    void setEdges(const std::vector<std::pair<uint32_t, uint32_t>>& edges);
+    void setEdgeColors(const std::vector<uint32_t>& colors);
+    void setEdgeLabels(const std::vector<std::string>& labels);
+    void setEdgesThickness(const std::vector<float>& thicknesses);
 };
+
 
 class Graph{
     uint32_t _sz;
@@ -426,7 +435,7 @@ public:
     ~Graph();
     
     
-    void visualize(const std::vector<uint32_t>& colors = {}, const std::vector<std::pair<float, float>>& coords = {}, const std::vector<float>& line_widths = {}, const std::vector<std::string>& node_labels = {});
+    void visualize(const std::vector<uint32_t>& node_colors = {}, const std::vector<uint32_t>& edge_colors = {}, const std::vector<std::pair<float, float>>& coords = {}, const std::vector<float>& line_widths = {}, const std::vector<std::string>& node_labels = {});
     void visualizeBipartite();
     void visualizeWithHighlightedEdges(const std::vector<std::pair<uint32_t, uint32_t>>& edges);
     /*

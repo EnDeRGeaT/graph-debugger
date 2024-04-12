@@ -9,7 +9,6 @@
 
 std::shared_ptr<OpenGL::Window> Graph::_window = nullptr;
 
-
 Graph::Graph(uint32_t vertice_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, bool is_directed):
     _sz(vertice_count),
     _is_directed(is_directed), 
@@ -65,7 +64,7 @@ Graph::~Graph(){
     } 
 }
 
-void Graph::visualize(const std::vector<uint32_t>& colors, const std::vector<std::pair<float, float>>& coords, const std::vector<float>& line_widths, const std::vector<std::string>& node_labels) {
+void Graph::visualize(const std::vector<uint32_t>& node_colors, const std::vector<uint32_t>& edge_colors, const std::vector<std::pair<float, float>>& coords, const std::vector<float>& line_widths, const std::vector<std::string>& node_labels) {
     std::unique_lock lck(_window_init_mutex);
     if(_window == nullptr){
         std::condition_variable cv;
@@ -85,82 +84,40 @@ void Graph::visualize(const std::vector<uint32_t>& colors, const std::vector<std
     }
 
     auto tab = _associated_tab.lock();
-    std::lock_guard lock(tab->mutating_mutex);
 
     if(coords.size() == _sz){
-        tab->getCoordsVector() = coords;
+        tab->setNodeCoords(coords);
     }
-    // auto drawing_graph = _is_directed ? matplot::digraph(_edges) : matplot::graph(_edges);
-    // if(_weights.size()){
-    //     std::vector<std::string> str_weights;
-    //     std::transform(_weights.begin(), _weights.end(), std::back_inserter(str_weights), [](int32_t x) { return std::to_string(x); });
-    //     drawing_graph->edge_labels(str_weights);
-    // }
-    // if(colors.size() == _sz){
-    //     std::vector<double> r, g, b;
-    //     for(auto color: colors){
-    //         b.push_back((color & 255) * 1.0 / 255);
-    //         color >>= 8;
-    //         g.push_back((color & 255) * 1.0 / 255);
-    //         color >>= 8;
-    //         r.push_back((color & 255) * 1.0 / 255);
-    //     }
-    //     matplot::vector_2d coloring{r, g, b};
-    //     auto pal = matplot::transpose(coloring);
-    //     matplot::colormap(pal);
-    //     std::vector<double> indexes(_sz);
-    //     std::iota(indexes.begin(), indexes.end(), 0);
-    //     drawing_graph->marker_colors(indexes);
-    // }
-    // if(x_data.size() == _sz){
-    //     drawing_graph->x_data(x_data);
-    // }
-    // if(y_data.size() == _sz){
-    //     drawing_graph->y_data(y_data);
-    // }
-    // if(z_data.size() == _sz){
-    //     drawing_graph->z_data(z_data);
-    // }
-    // if(line_widths.size() == _edges.size()){
-    //     drawing_graph->line_widths(line_widths);
-    // }
-    // if(node_labels.size() == _sz){
-    //     drawing_graph->node_labels(node_labels);
-    // }
-    // matplot::show();
-    // matplot::colormap(matplot::palette::default_map());
-    // matplot::cla();
+    if(_weights.size()){
+        std::vector<std::string> str_weights;
+        std::transform(_weights.begin(), _weights.end(), std::back_inserter(str_weights), [](int32_t x) { return std::to_string(x); });
+        tab->setEdgeLabels(str_weights);
+    }
+    if(node_colors.size() == _sz){
+        tab->setNodeColors(node_colors);
+    }
+    if(edge_colors.size() == _sz){
+        tab->setEdgeColors(edge_colors);
+    }
+    if(line_widths.size() == _edges.size()){
+        tab->setEdgesThickness(line_widths);
+    }
+    if(node_labels.size() == _sz){
+        tab->setEdgeLabels(node_labels);
+    }
 }
-
-void Graph::visualizeBipartite(){
-    // auto d = findDistancesFromNode(0);
-    // int i = 0, j = 0;
-    // std::vector<double> x_data, y_data;
-    // for(const auto& parity: d){
-    //     if(parity.has_value() && *parity % 2){
-    //         x_data.push_back(1);
-    //         y_data.push_back(j++);
-    //     }
-    //     else{
-    //         x_data.push_back(-1);
-    //         y_data.push_back(i++);
-    //     }
-    // }
-    // visualize({}, x_data, y_data);
-}
-
 
 void Graph::visualizeWithHighlightedEdges(const std::vector<std::pair<uint32_t, uint32_t>>& edges){
-    // std::vector<double> width(_edges.size(), 0.1);
-    // for(auto [x, y]: edges){
-    //     if(_is_directed == false && x > y) std::swap(x, y);
-    //     auto xy = std::make_pair(x, y);
-    //     uint32_t ind = std::lower_bound(_edges.begin(), _edges.end(), xy) - _edges.begin();
-    //     if(ind != _edges.size() && _edges[ind] == xy){
-    //         width[ind] = 3; 
-    //     }
-    // }
-    // visualize({}, {}, {}, {}, width);
+    std::vector<uint32_t> colors(_edges.size(), 0xEAD8C0);
+    for(auto [x, y]: edges){
+        if(_is_directed == false && x > y) std::swap(x, y);
+        auto xy = std::make_pair(x, y);
+        uint32_t ind = std::lower_bound(_edges.begin(), _edges.end(), xy) - _edges.begin();
+        if(ind != _edges.size() && _edges[ind] == xy){
+            colors[ind] = 0x0; 
+        }
+    }
+    visualize({}, colors);
 }
 
 
@@ -349,6 +306,7 @@ std::optional<std::vector<uint32_t>> Graph::findEulerianCircuit(){
     dfs(dfs, 0);
     return path;
 }
+
 
 std::vector<uint32_t> Graph::findMinimumSpanningTree(){
     std::priority_queue<std::pair<int32_t, uint32_t>, std::vector<std::pair<int32_t, uint32_t>>, std::greater<>> pq;
