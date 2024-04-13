@@ -1,7 +1,7 @@
 #pragma once
 #define NOMINMAX // i hate windows
-#include "include/glad/glad.h"
-#include "glfw/include/GLFW/glfw3.h"
+#include "glad/glad.h"
+#include "GLFW/glfw3.h"
 #include <algorithm>
 #include <unordered_map>
 #include <condition_variable>

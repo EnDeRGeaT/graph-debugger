@@ -24,14 +24,12 @@ if(MSVC)
 else()
     target_compile_options(GraphDebugger PUBLIC -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wconversion -Wno-unused-parameter)
 endif()
+
 target_compile_features(GraphDebugger PUBLIC cxx_std_17)
 
 add_subdirectory(glfw)
 target_link_libraries(GraphDebugger PUBLIC glfw)
-
 target_include_directories(GraphDebugger PRIVATE 
-    ${CMAKE_CURRENT_LIST_DIR}
-    glfw/include
     include
 )
 
