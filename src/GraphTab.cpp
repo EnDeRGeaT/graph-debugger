@@ -13,10 +13,20 @@
 
 
 void GraphTab::prettifyCoordinates(OpenGL::Window& window){
+    const size_t too_much = 1000;
     auto& coords = _node_coords.mutateData();
     float width = static_cast<float>(window.getWidth());
     float height = static_cast<float>(window.getHeight());
-    coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density); // deleted edges are still accounted
+    bool prettify = true;
+    if(_available_node_indices.getData().size() > too_much){
+        prettify = false;
+        std::cerr << "Warning: The graph you are trying to prettify is too large\n";
+        std::cerr << "Press y if you want to prettify it anyway: ";
+        char c;
+        std::cin >> c;
+        prettify = c == 'y' || c == 'Y';
+    }
+    if(prettify) coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density); // deleted edges are still accounted
 
     auto& scoords = _string_coords.mutateData();
     for(const auto &index: _available_node_indices.getData()) {
@@ -869,12 +879,12 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         }
     };
 
-    struct OKEY : public OpenGL::InputHandler::BaseKey {
+    struct HKEY : public OpenGL::InputHandler::BaseKey {
         OpenGL::InputHandler& input;
         GraphTab& tab;
         OpenGL::Window& window;
         bool pressed = false;
-        OKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
+        HKEY(OpenGL::InputHandler& input_handler, GraphTab& assoc_tab, OpenGL::Window& win) :
             input(input_handler),
             tab(assoc_tab),
             window(win)
@@ -882,20 +892,32 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
         virtual void perform(int key){
             if(key && !pressed){
-                std::cerr << "string: ";
-                for(const auto& ch: tab._string_buffer.getData()){
-                    std::cerr << char(ch) << ' ';
-                }
+                std::cerr << "USAGE: \n";
+                std::cerr << "== Most important ==\n";
+                std::cerr << "H key: Help key\n";
+                std::cerr << "Esc key: Close the window\n";
                 std::cerr << std::endl;
-                std::cerr << "available: ";
-                for(const auto& ch: tab._available_string_indices.getData()){
-                    std::cerr << ch << ' ';
-                }
+
+                std::cerr << "== Movement ==\n";
+                std::cerr << "Left mouse: Drag nodes or the canvas itself\n";
+                std::cerr << "- key: Zoom out\n";
+                std::cerr << "+ key: Zoom in\n";
                 std::cerr << std::endl;
-                std::cerr << "psum: ";
-                for(const auto& ch: tab._string_prefix_sum.getData()){
-                    std::cerr << ch << ' ';
-                }
+
+                std::cerr << "== Highlighting and changing the graph ==\n";
+                std::cerr << "Right mouse: Highlight a node or add a blank node\n";
+                std::cerr << "N key: Make all blank nodes into real ones\n";
+                std::cerr << "E key: If two nodes are highlighted, create an edge between them\n";
+                std::cerr << "X key: If two nodes are highlighted, delete all edges between them\n";
+                std::cerr << "D key: Deletes all highlighted nodes (does NOT delete blank nodes)\n";
+                std::cerr << "C key: Cancels all highlights of nodes (including blank nodes)\n";
+                std::cerr << "F key: Attempts to make the graph prettier (very slow and mostly it becomes ugly instead)\n";
+                std::cerr << std::endl;
+
+                std::cerr << "== Multiple graphs ==\n";
+                std::cerr << "Q key: Close the graph tab\n";
+                std::cerr << "Left arrow key: Move to the left tab\n";
+                std::cerr << "Right arrow key: Move to the right tab\n";
                 std::cerr << std::endl;
             }
             pressed = key;
@@ -906,7 +928,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     _input_handler.attachKey(GLFW_KEY_F, std::make_unique<FKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_EQUAL, std::make_unique<PLUSKEY>(_input_handler, *this, window));
     _input_handler.attachKey(GLFW_KEY_MINUS, std::make_unique<MINUSKEY>(_input_handler, *this, window));
-    _input_handler.attachKey(GLFW_KEY_O, std::make_unique<OKEY>(_input_handler, *this, window));
+    _input_handler.attachKey(GLFW_KEY_H, std::make_unique<HKEY>(_input_handler, *this, window));
 }
 
 // there is a possibility that sizes will differ (which is ehh, horrible)
