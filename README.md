@@ -66,7 +66,7 @@ int main(){
         {1, 2},
         {1, 3}
     };
-    auto g = Graph(4, e);
+    auto g = Graph(4, edges);
     g.visualize();
 }
 ```
