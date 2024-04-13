@@ -429,20 +429,54 @@ class Graph{
     std::weak_ptr<GraphTab> _associated_tab;
     
 public:
-
+    /**
+     * @brief Construct an unweighted graph
+     * 
+     * @param vertice_count number of nodes in a graph
+     * @param edges list of edges (0 indexed)
+     * @param is_directed true if graph is directed
+     */
     Graph(uint32_t vertice_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, bool is_directed = false);
+    
+    /**
+     * @brief Constructs a weighted graph
+     * 
+     * @param vertice_count number of nodes in a graph
+     * @param edges list of edges (0 indexed)
+     * @param is_directed true if graph is directed
+     */
     Graph(uint32_t vertice_count, std::vector<std::tuple<uint32_t, uint32_t, int>> edges, bool is_directed = false);
     ~Graph();
     
-    
+    /**
+     * @brief Creates a window with the visualization of the graph. All parameters are optional.
+     * 
+     * @param node_colors coloring of the nodes, colors are encoded in uint32_t like that: 0xRRGGBB 
+     * @param edge_colors coloring of the edges, colors are encoded in uint32_t like that: 0xRRGGBB 
+     * @param coords coordinates of the nodes, coordinates must be pairs {x, y} in screen space (pixels)  
+     * @param line_widths thicknesses of the edges in pixels 
+     * @param node_labels names for the nodes
+     */
     void visualize(const std::vector<uint32_t>& node_colors = {}, const std::vector<uint32_t>& edge_colors = {}, const std::vector<std::pair<float, float>>& coords = {}, const std::vector<float>& line_widths = {}, const std::vector<std::string>& node_labels = {});
-    void visualizeBipartite();
+
+    /**
+     * @brief Draws a graph with some edges highlighted
+     * 
+     * @param edges edges to be highlighted
+     */
     void visualizeWithHighlightedEdges(const std::vector<std::pair<uint32_t, uint32_t>>& edges);
+
     /*
-    f must be an object (or a lambda) with an overloaded operator() that takes such arguments:
-    (current_node, next_node, index_of_an_edge, const Graph& our_graph)
-    if you want to change the graph, pass just by ref
     */
+
+    /**
+     * @brief Generic BFS
+     * 
+     * @param starting_node node to start bfs from
+     * @param f  f must be an object (or a lambda) with an overloaded operator() that takes such arguments:
+                (current node, next node, index of an edge, graph)
+                if you want to change the graph, pass just by ref
+     */
     template<typename T>
     void bfs(uint32_t starting_node, T& f){
         std::queue<uint32_t> q;
@@ -461,6 +495,14 @@ public:
         }
     }
 
+    /**
+     * @brief Generic DFS
+     * 
+     * @param starting_node node to start dfs from
+     * @param f  f must be an object (or a lambda) with an overloaded operator() that takes such arguments:
+                (current node, next node, previous node, index of an edge, graph)
+                if you want to change the graph, pass just by ref
+     */
     template<typename T>
     void dfs(uint32_t node, T& f){
         std::vector<char> used(_sz);
@@ -478,15 +520,68 @@ public:
         self(self, node, node);
     }
 
+    /**
+     * @brief Get the number of nodes in the graph
+     * 
+     * @return uint32_t number of nodes
+     */
     uint32_t getNodes(); 
-    std::vector<std::pair<uint32_t, uint32_t>> getEdges();
-    std::vector<std::vector<std::optional<int32_t>>> getAdjacencyMatrix();
     
+    /**
+     * @brief Get the list of edges
+     * 
+     * @return std::vector<std::pair<uint32_t, uint32_t>> edges
+     */
+    std::vector<std::pair<uint32_t, uint32_t>> getEdges();
+    
+    /**
+     * @brief Get the adjacency matrix of the graph. std::optional doesn't have a value if there's no path
+     * 
+     * @return std::vector<std::vector<std::optional<int32_t>>> 
+     */
+    std::vector<std::vector<std::optional<int32_t>>> getAdjacencyMatrix(); 
+    
+    /**
+     * @brief Finds distances from the first node using Dijkstra's algorithm. std::optional doesn't have a value if there's no path
+     * 
+     * @param starting_node source node
+     * @return std::vector<std::optional<int32_t>> vector of distances
+     */
     std::vector<std::optional<int32_t>> findDistancesFromNode(uint32_t starting_node);
+
+    /**
+     * @brief Find the shortest path between start and finish. std::optional doesn't have a value if there's no path
+     * 
+     * @param start 
+     * @param finish 
+     * @return std::optional<std::vector<uint32_t>> 
+     */
     std::optional<std::vector<uint32_t>> findShortestPathBetweenNodes(uint32_t start, uint32_t finish);
+
+    /**
+     * @brief Finds pairwise distances using Floyd-Warshall algorithm
+     * 
+     * @return std::vector<std::vector<std::optional<int32_t>>> vector of distances
+     */
     std::vector<std::vector<std::optional<int32_t>>> findPairwiseDistances();
     
-    std::optional<std::vector<uint32_t>> findHamiltonianCycle();
+    /**
+     * @brief Finds Hamiltonian cycle. std::optional doesn't have a value if the Graph is not hamiltonian
+     * 
+     * @return std::optional<std::vector<uint32_t>> 
+     */
+    std::optional<std::vector<uint32_t>> findHamiltonianCycle(); 
+
+    /**
+     * @brief Finds Eulerian circuit. std::optional doesn't have a value if the Graph is not eulerian
+     * 
+     * @return std::optional<std::vector<uint32_t>> 
+     */
     std::optional<std::vector<uint32_t>> findEulerianCircuit();
+    /**
+     * @brief Returns the edges of minimum spanning tree in a graph
+     * 
+     * @return std::vector<uint32_t> 
+     */
     std::vector<uint32_t> findMinimumSpanningTree();
 };
