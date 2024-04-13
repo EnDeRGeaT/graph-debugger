@@ -302,7 +302,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     {
         std::stringstream vertexstream;
         vertexstream << R"(
-        #version 460 core
+        #version 430 core
 
         struct NodeParams{
             uint vertex_color;
@@ -358,7 +358,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         
         std::stringstream fragmentstream;
         fragmentstream << R"(
-        #version 460 core
+        #version 430 core
         layout(origin_upper_left, pixel_center_integer) in vec4 gl_FragCoord;
 
         in vec2 center;
@@ -395,7 +395,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     {
         std::stringstream vertexstream;
         vertexstream << R"(
-        #version 460 core
+        #version 430 core
         struct EdgeParams{
             uint edge_color;
             float edge_width;
@@ -464,7 +464,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
 
         std::stringstream fragmentstream;
         fragmentstream << R"(
-        #version 460 core
+        #version 430 core
         out vec4 FragColor;
 
         in vec3 color;
@@ -481,7 +481,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
     {
         std::stringstream vertexstream;
         vertexstream << R"(
-        #version 460 core
+        #version 430 core
         struct StringParams{
             uint color;
             float scale;
@@ -580,7 +580,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         
         std::stringstream fragmentstream;
         fragmentstream << R"(
-        #version 460 core
+        #version 430 core
         in vec2 texCoords;
         out vec4 FragColor;
 
