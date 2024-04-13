@@ -18,9 +18,12 @@ add_library(GraphDebugger STATIC
     src/hardcoded_texture_atlas.cpp
     src/InputHandler.cpp
 )
-
-
-target_compile_options(GraphDebugger PUBLIC -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wconversion -Wno-unused-parameter -static-libstdc++)
+  
+if(MSVC)
+    target_compile_options(GraphDebugger PUBLIC /W4)
+else()
+    target_compile_options(GraphDebugger PUBLIC -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wconversion -Wno-unused-parameter)
+endif()
 target_compile_features(GraphDebugger PUBLIC cxx_std_17)
 
 add_subdirectory(glfw)
@@ -32,6 +35,3 @@ target_include_directories(GraphDebugger PRIVATE
     include
 )
 
-set(CPACK_PROJECT_NAME ${PROJECT_NAME})
-set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
-include(CPack)
