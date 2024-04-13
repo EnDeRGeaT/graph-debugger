@@ -21,7 +21,7 @@ add_library(GraphDebugger STATIC
 
 
 target_compile_options(GraphDebugger PUBLIC -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wconversion -Wno-unused-parameter -static-libstdc++)
-target_compile_features(GraphDebugger PUBLIC cxx_std_20)
+target_compile_features(GraphDebugger PUBLIC cxx_std_17)
 
 add_subdirectory(glfw)
 target_link_libraries(GraphDebugger PUBLIC glfw)

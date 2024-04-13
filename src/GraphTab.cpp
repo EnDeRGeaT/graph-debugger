@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include "GraphDebugger.h"
 #include <algorithm>
 #include <cmath>
@@ -200,9 +201,9 @@ void GraphTab::updateEdgeLabelPos(uint32_t edge_index){
     auto v = _node_coords.getData()[edge.second];
 
     float angle = std::atan2(u.second - v.second, u.first - v.first);
-    if(angle < 0) angle += static_cast<float>(std::numbers::pi);
+    if(angle < 0) angle += static_cast<float>(M_PI);
 
-    if(angle < std::numbers::pi / 2){
+    if(angle < M_PI / 2){
         _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::bottom_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
     }
     else{
