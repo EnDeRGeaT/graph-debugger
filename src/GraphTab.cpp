@@ -15,6 +15,7 @@
 void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     const size_t too_much = 1000;
     auto& coords = _node_coords.mutateData();
+    if(coords.empty()) return;
     float width = static_cast<float>(window.getWidth());
     float height = static_cast<float>(window.getHeight());
     bool prettify = true;
@@ -109,7 +110,7 @@ void GraphTab::draw(OpenGL::Window& window){
             psum[i] = static_cast<uint32_t>(_strings[indices[i]].size());
         }
         std::partial_sum(psum.begin(), psum.end(), psum.begin());
-        buffer.resize(psum.back());
+        buffer.resize(psum.empty() ? 0 : psum.back());
         auto buffer_it = buffer.begin();
         for(const auto& index: indices){
             const auto& str = _strings[index];
