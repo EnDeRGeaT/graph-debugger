@@ -4,7 +4,6 @@
 #include <cmath>
 #include <cstdint>
 #include <mutex>
-#include <numbers>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -728,9 +727,23 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                 if(!right_mouse_button_pressed){
                     uint32_t v = getClickedNode(cursor_x, cursor_y);
                     if(v != coords.size()){
-                        if(std::find(highlighted.begin(), highlighted.end(), v) == highlighted.end()) {
-                            highlighted.push_back(v);
-                            tab._node_properties.mutateData()[v].color = 0x0000FF;
+                        {
+                            auto it = std::find(highlighted.begin(), highlighted.end(), v);
+                            if(it == highlighted.end()) {
+                                highlighted.push_back(v);
+                                tab._node_properties.mutateData()[v].color = 0x0000FF;
+                            }
+                            else{
+                                tab._node_properties.mutateData()[v].color = tab._default_node_color;
+                                highlighted.erase(it);
+                            }
+                        }
+                        {
+                            auto it = std::find(new_nodes.begin(), new_nodes.end(), v);
+                            if(it != new_nodes.end()) {
+                                tab.deleteNode(v);
+                                new_nodes.erase(it);
+                            }
                         }
                     }
                     else{
@@ -906,7 +919,7 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
                 std::cerr << std::endl;
 
                 std::cerr << "== Highlighting and changing the graph ==\n";
-                std::cerr << "Right mouse: Highlight a node or add a blank node\n";
+                std::cerr << "Right mouse: Highlight/unhighlight a node or add/remove a blank node\n";
                 std::cerr << "N key: Make all blank nodes into real ones\n";
                 std::cerr << "E key: If two nodes are highlighted, create an edge between them\n";
                 std::cerr << "X key: If two nodes are highlighted, delete all edges between them\n";

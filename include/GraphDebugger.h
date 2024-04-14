@@ -578,6 +578,7 @@ public:
      * @return std::optional<std::vector<uint32_t>> 
      */
     std::optional<std::vector<uint32_t>> findEulerianCircuit();
+
     /**
      * @brief Returns the edges of minimum spanning tree in a graph
      * 
