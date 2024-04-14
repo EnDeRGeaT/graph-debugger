@@ -26,7 +26,7 @@ void GraphTab::prettifyCoordinates(OpenGL::Window& window){
         std::cin >> c;
         prettify = c == 'y' || c == 'Y';
     }
-    if(prettify) coords = forceDirected(coords, _edges.getData(), {0, width}, {0, height}, _graph_density); // deleted edges are still accounted
+    if(prettify) coords = forceDirected(coords, _edges.getData()); // deleted edges are still accounted
 
     auto& scoords = _string_coords.mutateData();
     for(const auto &index: _available_node_indices.getData()) {
@@ -418,6 +418,12 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         };
 
         out vec3 color;
+        out vec2 center;
+        out float width;
+        out float height;
+        out float cosa;
+        out float sina;
+        out float thickness;
 
         float direction[6] = {
             -1.0,
@@ -428,10 +434,29 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             -1.0
         };
 
+        uint even[6] = {
+            2,
+            0,
+            2,
+            0,
+            0,
+            2
+        };
+
+        uint odd[6] = {
+            0,
+            2,
+            0,
+            2,
+            2,
+            0
+        };
+
         uniform vec2 resolution;
         uniform vec2 movement;
         uniform float zoom;
-
+        const float HEIGHT = 40;
+       
         vec2 apply(vec2 a){
             return vec2(2 * a.x / resolution.x - 1, 1 - 2 * a.y / resolution.y);
         }
@@ -440,24 +465,46 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
             uint edge_id = edge_indices[gl_VertexID / 6];
             int vertice_id = gl_VertexID % 6;
 
+            uint multi_edge_index = edge_id;
+
             color = vec3((parameters[edge_id].edge_color >> 16) & 255, (parameters[edge_id].edge_color >> 8) & 255, (parameters[edge_id].edge_color) & 255) / 255;
 
             vec2 v = vertex_coords[edges[edge_id].x] + movement;
             vec2 u = vertex_coords[edges[edge_id].y] + movement;
 
+            vec2 diff = u - v;
+            width = length(diff);
+            height = HEIGHT * ((multi_edge_index + 1) / 2);
+            cosa = diff.x / width;
+            sina = -diff.y / width;
+            center = ((u + v) / 2 - resolution / 2) / zoom + resolution / 2;
+            center = vec2(center.x * cosa - center.y * sina, center.x * sina + center.y * cosa);
+            thickness = parameters[edge_id].edge_width;
+
             v = apply(v);
             u = apply(u);
 
             vec2 dir = normalize((v - u) * resolution);
-            vec2 offset = vec2(-dir.y, dir.x) * parameters[edge_id].edge_width / resolution;
+            vec2 offset = vec2(-dir.y, dir.x) / resolution;
 
             gl_Position.zw = vec2(0.0, zoom);
 
-            if(vertice_id == 0 || vertice_id == 1 || vertice_id == 3) {
-                gl_Position.xy = v + offset * direction[vertice_id];
+            uint parity = multi_edge_index % 2;
+            if(parity == 0){
+                if(vertice_id == 0 || vertice_id == 1 || vertice_id == 3) {
+                    gl_Position.xy = v + offset * (thickness + height * even[vertice_id]) * direction[vertice_id];
+                }
+                else{
+                    gl_Position.xy = u + offset * (thickness + height * even[vertice_id]) * direction[vertice_id];
+                }
             }
-            else{
-                gl_Position.xy = u + offset * direction[vertice_id];
+            else {
+                if(vertice_id == 0 || vertice_id == 1 || vertice_id == 3) {
+                    gl_Position.xy = v + offset * (thickness + height * odd[vertice_id]) * direction[vertice_id];
+                }
+                else{
+                    gl_Position.xy = u + offset * (thickness + height * odd[vertice_id]) * direction[vertice_id];
+                }
             }
         }
         )";
@@ -465,13 +512,57 @@ GraphTab::GraphTab(size_t node_count, const std::vector<std::pair<uint32_t, uint
         std::stringstream fragmentstream;
         fragmentstream << R"(
         #version 430 core
+        layout(origin_upper_left, pixel_center_integer) in vec4 gl_FragCoord;
         out vec4 FragColor;
 
+        uniform float zoom;
+
         in vec3 color;
+        in vec2 center;
+        in float width;
+        in float height;
+        in float sina;
+        in float cosa;
+        in float thickness;
+
+        float hardstep(float a, float b, float x){
+            if(x < a) return 0;
+            if(x > b) return 0;
+            return 1;
+        }
 
         void main() {
-            FragColor.rgb = color;
-            FragColor.a = 1.0;
+            if(height < 1e-6){
+                FragColor.rgb = color;
+                FragColor.a = 1.0;
+            }
+            else{
+                float bound_zoomed = thickness / zoom;
+                float radius_zoomed = width / zoom;
+                float height_zoomed = height / zoom;
+
+                vec2 tmp = gl_FragCoord.xy;
+                tmp = vec2(tmp.x * cosa - tmp.y * sina, tmp.x * sina + tmp.y * cosa);
+                vec2 diff = (tmp.xy - center.xy) / vec2(radius_zoomed / 2, height_zoomed);
+                
+                float dist = length(diff);
+
+                float radiusH = 1.0 - bound_zoomed / radius_zoomed;
+                float radiusV = 1.0 - bound_zoomed / height_zoomed;
+                float radiusAverage = (radiusH + radiusV) * 0.5;
+
+                float minRadius = 0.0;
+                float x = abs( diff.x );
+                float y = abs( diff.y );
+                if( x > y ) {
+                    minRadius = mix( radiusH, radiusAverage, y / x );
+                }
+                else {
+                    minRadius = mix( radiusV, radiusAverage, x / y );
+                }
+
+                FragColor = vec4(0.0, 0.0, 0.0, hardstep(minRadius, 1.0, dist));
+            }
         }
         )";
         _edge_shader.addShader(vertexstream, GL_VERTEX_SHADER);

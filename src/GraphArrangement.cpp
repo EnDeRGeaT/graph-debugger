@@ -1,28 +1,21 @@
-#include "GraphDebugger.h"
 #include <cmath>
 #include <vector>
 
-std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>> &edges, std::pair<float, float> x_range, std::pair<float, float> y_range, float density){
+std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>> &edges){
     const float tolerance = 0.5;
 	const float eps = 1e-9f;
-	float x_len = x_range.second - x_range.first;
-	float y_len = y_range.second - y_range.first;
-    float graph_size = static_cast<float>(coords.size());
-	float C = std::sqrt(std::min(x_len, y_len) / graph_size);
-    float size_pw = std::max(graph_size * 10.f, std::pow(graph_size, 1.3f));
-	density *= size_pw;
-	// int iterations = 100;
+    const float K = 200;
 
 	auto dist = [&](const std::pair<float, float> &a) {
 		return std::sqrt(a.first * a.first + a.second * a.second) + eps;
 	};
 	auto attractive = [&](const std::pair<float, float> &a) {
 		float d = dist(a);
-		return d * d / C;
+		return d * d / K;
 	};
 	auto repulsive = [&](const std::pair<float, float> &a) {
 		float d = dist(a);
-		return density * C * C / d;
+		return K * K / d;
 	};
 	auto updateStep = [progress = 0](float step, float current_energy, float previous_energy) mutable {
 		const float t = 0.9f;
@@ -38,7 +31,7 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 		return step;
 	};
 	float energy = 1e12f;
-    float step = C;
+    float step = K;
     for(auto [x0, y0]: coords){
         for(auto [x, y]: coords){
             step = std::max(step, dist({x - x0, y - y0}) * 0.25f);

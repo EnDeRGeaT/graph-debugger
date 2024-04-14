@@ -282,9 +282,7 @@ namespace OpenGL{
     };
 };
 
-std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>>& edges, std::pair<float, float> x_range, std::pair<float, float> y_range, float density = 30);
-
-
+std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>>& edges);
 
 class GraphTab : public OpenGL::Tab {
     // the input handler
@@ -324,6 +322,8 @@ class GraphTab : public OpenGL::Tab {
 
     OpenGL::Buffer<uint32_t> _available_edge_indices;
     std::vector<uint32_t> _deleted_edge_indices;
+    OpenGL::Buffer<uint32_t> _mutli_edge_index;
+    std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t> _count_edges;
 
     struct EdgeParams{
         uint32_t color;
