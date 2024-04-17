@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 
+namespace debug {
 
 void GraphTab::prettifyCoordinates(OpenGL::Window& window){
     const size_t too_much = 1000;
@@ -1118,4 +1119,6 @@ void GraphTab::setEdgesThickness(const std::vector<float>& thicknesses){
 GraphTab::~GraphTab(){
     std::lock_guard lock(_mutating_mutex);
     glDeleteTextures(1, &_texture_atlas_id);
+}
+
 }

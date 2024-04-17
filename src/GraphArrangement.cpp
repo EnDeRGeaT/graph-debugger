@@ -1,6 +1,8 @@
 #include <cmath>
 #include <vector>
 
+namespace debug {
+    
 std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>> &edges){
     const float tolerance = 0.5;
 	const float eps = 1e-9f;
@@ -96,4 +98,5 @@ std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, 
 	}
 
 	return coords;
+}
 }

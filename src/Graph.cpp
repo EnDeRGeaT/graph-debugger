@@ -8,6 +8,8 @@
 #include <vector>
 #include <queue>
 
+namespace Debug {
+
 std::shared_ptr<OpenGL::Window> Graph::_window = nullptr;
 
 Graph::Graph(uint32_t vertice_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, bool is_directed):
@@ -333,4 +335,4 @@ std::vector<uint32_t> Graph::findMinimumSpanningTree(){
     return MST;
 }
 
-
+};

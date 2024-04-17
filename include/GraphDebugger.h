@@ -282,6 +282,8 @@ namespace OpenGL{
     };
 };
 
+namespace debug {
+
 std::vector<std::pair<float, float>> forceDirected(std::vector<std::pair<float, float>> coords, const std::vector<std::pair<uint32_t, uint32_t>>& edges);
 
 class GraphTab : public OpenGL::Tab {
@@ -586,3 +588,4 @@ public:
      */
     std::vector<uint32_t> findMinimumSpanningTree();
 };
+}
