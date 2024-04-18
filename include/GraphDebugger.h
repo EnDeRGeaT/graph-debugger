@@ -324,8 +324,27 @@ class GraphTab : public OpenGL::Tab {
 
     OpenGL::Buffer<uint32_t> _available_edge_indices;
     std::vector<uint32_t> _deleted_edge_indices;
+
+    struct PairHash {
+        static size_t hash_f(size_t x) {
+            x += 0x9e3779b97f4a7c15;
+            x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9;
+            x = (x ^ (x >> 27)) * 0x94d049bb133111eb;
+            return x ^ (x >> 31);
+        }
+        static size_t hash_combine(size_t a, size_t b) {
+            a ^= b + 0x9e3779b9 + (a << 6) + (a >> 2);
+            return a;
+        }
+        static size_t hash(const std::pair<uint32_t, uint32_t>& p) {
+            size_t h_a = hash_f(p.first);
+            size_t h_b = hash_f(p.second);
+            return std::min(hash_combine(h_b, h_a), hash_combine(h_a, h_b));
+        }
+    };
+
     OpenGL::Buffer<uint32_t> _mutli_edge_index;
-    std::unordered_map<std::pair<uint32_t, uint32_t>, uint32_t> _count_edges;
+    std::unordered_map<size_t, std::vector<uint32_t>> _multi_edge_indices;
 
     struct EdgeParams{
         uint32_t color;
