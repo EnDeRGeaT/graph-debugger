@@ -352,6 +352,7 @@ class GraphTab : public OpenGL::Tab {
     };
     OpenGL::Buffer<EdgeParams> _edge_properties;
     std::vector<uint32_t> _edge_labels;
+    const float _height_per_level = 40.f;
     uint32_t _default_edge_color;
     float _default_edge_thickness;
 

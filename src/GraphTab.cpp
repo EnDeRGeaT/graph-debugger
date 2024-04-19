@@ -18,14 +18,14 @@ namespace debug {
         float width = static_cast<float>(window.getWidth());
         float height = static_cast<float>(window.getHeight());
         bool prettify = true;
-        if(_available_node_indices.getData().size() > too_much){
-            prettify = false;
-            std::cerr << "Warning: The graph you are trying to prettify is too large\n";
-            std::cerr << "Press y if you want to prettify it anyway: ";
-            char c;
-            std::cin >> c;
-            prettify = c == 'y' || c == 'Y';
-        }
+        // if(_available_node_indices.getData().size() > too_much){
+        //     prettify = false;
+        //     std::cerr << "Warning: The graph you are trying to prettify is too large\n";
+        //     std::cerr << "Press y if you want to prettify it anyway: ";
+        //     char c;
+        //     std::cin >> c;
+        //     prettify = c == 'y' || c == 'Y';
+        // }
         if(prettify) coords = forceDirected(coords, _edges.getData()); // deleted edges are still accounted
 
         auto& scoords = _string_coords.mutateData();
@@ -84,6 +84,7 @@ namespace debug {
         _edge_shader.setUniform2fv("resolution", {1.0F * static_cast<float>(window.getWidth()), 1.0F * static_cast<float>(window.getHeight())});
         _edge_shader.setUniform2fv("movement", {_movement.first, _movement.second});
         _edge_shader.setUniform1f("zoom", _zoom);
+        _edge_shader.setUniform1f("height_per_level", _height_per_level);
         glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_available_edge_indices.getData().size()));
         // glDrawArrays(GL_TRIANGLES, 0, 6 * static_cast<int>(_edges.getData().size()));
 
@@ -188,6 +189,9 @@ namespace debug {
     }
 
     void GraphTab::addEdge(std::pair<uint32_t, uint32_t> edge, EdgeParams properties, std::string label){
+        auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, {0, 0} };
+        auto str_property = StringParams{_default_string_color, 0.6f * _default_string_scale};
+        
         size_t edge_hash = PairHash::hash(edge);
         if(_deleted_edge_indices.empty()) {
             _available_edge_indices.mutateData().push_back(static_cast<uint32_t>(_available_edge_indices.getData().size()));
@@ -195,6 +199,8 @@ namespace debug {
             _edge_properties.mutateData().push_back(properties);
             _multi_edge_indices[edge_hash].push_back(static_cast<uint32_t>(_mutli_edge_index.getData().size()));
             _mutli_edge_index.mutateData().push_back(static_cast<uint32_t>(_multi_edge_indices[edge_hash].size()) - 1);
+            _edge_labels.push_back(addString(label, str_coord, str_property));
+            updateEdgeLabelPos(static_cast<uint32_t>(_edges.getData().size()) - 1);
         }
         else {
             uint32_t ind = _deleted_edge_indices.back();
@@ -203,30 +209,45 @@ namespace debug {
             _edges.mutateData()[ind] = edge;
             _edge_properties.mutateData()[ind] = properties;
             _multi_edge_indices[edge_hash].push_back(static_cast<uint32_t>(_mutli_edge_index.getData().size()));
-            _mutli_edge_index.mutateData().push_back(ind);
             _mutli_edge_index.mutateData()[ind] = static_cast<uint32_t>(_multi_edge_indices[edge_hash].size()) - 1;
+            _edge_labels[ind] = addString(label, str_coord, str_property);
+            updateEdgeLabelPos(ind);
         }
 
-        auto str_coord = StringCoord{ static_cast<int>(StringAlignment::middle_center), 1, {0, 0} };
-        auto str_property = StringParams{_default_string_color, 0.6f * _default_string_scale};
-        _edge_labels.push_back(addString(label, str_coord, str_property));
-        updateEdgeLabelPos(static_cast<uint32_t>(_edges.getData().size()) - 1);
     }
 
     void GraphTab::updateEdgeLabelPos(uint32_t edge_index){ 
         if(_edge_labels.empty()) return;
         auto edge = _edges.getData()[edge_index];
-        auto u = _node_coords.getData()[edge.first];
-        auto v = _node_coords.getData()[edge.second];
+        auto v = _node_coords.getData()[std::min(edge.first, edge.second)];
+        auto u = _node_coords.getData()[std::max(edge.first, edge.second)];
 
-        float angle = std::atan2(u.second - v.second, u.first - v.first);
+        std::pair<float, float> dir = { v.second - u.second, u.first - v.first};
+        float dir_length = std::sqrt(dir.first * dir.first + dir.second * dir.second);
+        dir.first /= dir_length;
+        dir.second /= dir_length;
+        float angle = std::atan2(-dir.first, dir.second);
+
+        uint32_t multi_edge = _mutli_edge_index.getData()[edge_index];
+        dir.first *= ((multi_edge + 1) / 2) * _height_per_level;
+        dir.second *= ((multi_edge + 1) / 2) * _height_per_level;
+
+        std::pair<float, float> coord = {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2};
+        if(multi_edge % 2 == 1) {
+            coord.first += dir.first;
+            coord.second += dir.second;
+        }
+        else {
+            coord.first -= dir.first;
+            coord.second -= dir.second;
+        }
+
         if(angle < 0) angle += static_cast<float>(M_PI);
-
         if(angle < M_PI / 2){
-            _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::bottom_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
+            _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::bottom_left), true, coord};
         }
         else{
-            _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::top_left), true, {(u.first + v.first) / 2 + 5, (u.second + v.second) / 2}};
+            _string_coords.mutateData()[_edge_labels[edge_index]] = {static_cast<int>(StringAlignment::top_left), true, coord};
         }
     }
 
@@ -234,13 +255,21 @@ namespace debug {
         auto& indices = _available_edge_indices.mutateData();
         auto to_del = std::find(indices.begin(), indices.end(), edge_index);
         if(to_del == indices.end()) return;
+
         size_t edge_hash = PairHash::hash(_edges.getData()[edge_index]);
         auto& multi_edges = _multi_edge_indices[edge_hash];
-        multi_edges.erase(std::find(multi_edges.begin(), multi_edges.end(), edge_index));
-        auto& belongs = _mutli_edge_index.mutateData();
-        for(uint32_t i = 0; i < multi_edges.size(); i++){
-            belongs[multi_edges[i]] = i;
+        auto it = std::find(multi_edges.begin(), multi_edges.end(), edge_index);
+        if(it != multi_edges.end()) {
+            multi_edges.erase(it);
+            auto& belongs = _mutli_edge_index.mutateData();
+            for(uint32_t i = 0; i < multi_edges.size(); i++){
+                belongs[multi_edges[i]] = i;
+                updateEdgeLabelPos(multi_edges[i]);
+            }
         }
+
+        deleteString(_edge_labels[edge_index]);
+        
         _deleted_edge_indices.push_back(*to_del);
         indices.erase(to_del);
     }
@@ -476,7 +505,7 @@ namespace debug {
                 uniform vec2 resolution;
                 uniform vec2 movement;
                 uniform float zoom;
-                const float HEIGHT = 40;
+                uniform float height_per_level;
 
                 vec2 apply(vec2 a){
                     return vec2(2 * a.x / resolution.x - 1, 1 - 2 * a.y / resolution.y);
@@ -498,7 +527,7 @@ namespace debug {
 
                     vec2 diff = u - v;
                     width = length(diff);
-                    height = HEIGHT * ((multi_edge_index + 1) / 2);
+                    height = height_per_level * ((multi_edge_index + 1) / 2);
                     cosa = diff.x / width;
                     sina = -diff.y / width;
                     center = ((u + v) / 2 - resolution / 2) / zoom + resolution / 2;
