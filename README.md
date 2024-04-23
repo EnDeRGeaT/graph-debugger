@@ -66,7 +66,7 @@ int main(){
         {1, 2},
         {1, 3}
     };
-    auto g = Graph(4, edges);
+    auto g = Graph(edges);
     g.visualize();
 }
 ```
@@ -82,7 +82,7 @@ One of the workarounds is to visualize an empty Graph at the start of your main 
 ```cpp
 int main(){
     auto blank_edges = std::vector<std::pair<uint32_t, uint32_t>>{};
-    auto blank = Graph(0, blank_edges);
+    auto blank = Graph(blank_edges);
     blank.visualize();
     /* your program as usual */
 }
