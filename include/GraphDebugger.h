@@ -1,4 +1,8 @@
 #pragma once
+#include <iterator>
+#include <sys/stat.h>
+#include <tuple>
+#include <type_traits>
 #define NOMINMAX // i hate windows
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
@@ -6,6 +10,7 @@
 #include <unordered_map>
 #include <condition_variable>
 #include <cstddef>
+#include <numeric>
 #include <cstdint>
 #include <cstring>
 #include <cwchar>
@@ -436,38 +441,200 @@ public:
     void setEdgesThickness(const std::vector<float>& thicknesses);
 };
 
+template<class>
+constexpr bool dependent_false = false;
 
 class Graph{
     uint32_t _sz;
     uint32_t _is_directed;
 
     std::vector<std::pair<uint32_t, uint32_t>> _edges;
-    std::vector<int32_t> _weights;
+    std::vector<int64_t> _weights;
     std::vector<std::vector<std::pair<uint32_t, uint32_t>>> _adj_list;
     
     static std::shared_ptr<OpenGL::Window> _window;
     std::mutex _window_init_mutex;
     std::thread _running_thread;
     std::weak_ptr<GraphTab> _associated_tab;
+
+    template<typename T, typename U = void>
+    struct is_iterable {
+        static constexpr bool value = false;
+    };
+
+    template<typename T>
+    struct is_iterable<T, std::void_t<decltype(std::declval<T>().begin())>> {
+        static constexpr bool value = true;
+    };
+
+    template<typename T, typename U = void>
+    struct is_tuple_like {
+        static constexpr bool value = false;
+    };
+
+    template<typename T>
+    struct is_tuple_like<T, std::void_t<typename std::tuple_size<T>::value_type>>{
+        static constexpr bool value = true;
+    };
+
+    template<typename Iter>
+    void initialize(Iter begin, Iter end, uint32_t start = 0) {
+        using T = typename std::iterator_traits<Iter>::value_type;
+        constexpr bool is_edge_list = is_tuple_like<T>::value;
+        
+        uint32_t max_node_number = 0;
+        if constexpr (is_tuple_like<T>::value) { // edges
+            constexpr size_t tuple_size = std::tuple_size_v<T>;
+            static_assert(tuple_size == 2 || tuple_size == 3, "can't deduce the edge type");
+
+            for(auto it = begin; it != end; it++) {
+                uint32_t u = static_cast<uint32_t>(std::get<0>(*it));
+                uint32_t v = static_cast<uint32_t>(std::get<1>(*it));
+                if(!_is_directed && u > v) std::swap(u, v);
+                max_node_number = std::max(max_node_number, v);
+                max_node_number = std::max(max_node_number, u);
+                _edges.emplace_back(u, v);
+            }
+
+            if constexpr (tuple_size == 3) {
+                for(auto it = begin; it != end; it++) {
+                    int64_t w = static_cast<int64_t>(std::get<2>(*it));
+                    _weights.emplace_back(w);
+                }
+            }
+
+        }
+        else if constexpr (is_iterable<T>::value) { // adjacency list
+            uint32_t range_length = 0;
+
+            for(auto it = begin; it != end; it++, range_length++) {
+                uint32_t u = start + static_cast<uint32_t>(range_length);
+                using TT = typename std::iterator_traits<decltype(it->begin())>::value_type;
+                static_assert(std::is_integral_v<TT> || is_tuple_like<TT>::value, "can't deduce the edge type");
+
+
+                for(const auto& edge: *it) {
+                    if constexpr (std::is_integral_v<TT>){
+                        uint32_t v = static_cast<uint32_t>(edge);
+                        if(!_is_directed && v < u) _edges.emplace_back(v, u);
+                        else _edges.emplace_back(u, v);
+
+                        max_node_number = std::max(max_node_number, v);
+                    }
+                    else if constexpr (is_tuple_like<TT>::value) {
+                        constexpr size_t tuple_size = std::tuple_size_v<TT>;
+                        static_assert(tuple_size == 1 || tuple_size == 2, "can't deduce the edge type");
+
+                        uint32_t v = static_cast<uint32_t>(std::get<0>(edge));
+                        if(!_is_directed && v < u) _edges.emplace_back(v, u);
+                        else _edges.emplace_back(u, v);
+
+                        max_node_number = std::max(max_node_number, v);
+
+                        if constexpr (tuple_size == 2) {
+                            int64_t w = static_cast<int64_t>(std::get<1>(edge));
+                            _weights.emplace_back(w);
+                        }
+                    }
+                }
+            }
+            _sz = std::max(_sz, range_length + start);
+        }
+        else {
+            static_assert(dependent_false<T>, "can't deduce the type of graph");
+        }
+
+
+        std::vector<uint32_t> indices(_edges.size());
+        std::iota(indices.begin(), indices.end(), 0);
+        if(_weights.size()) std::sort(indices.begin(), indices.end(), [&](uint32_t i, uint32_t j) { return std::tie(_edges[i].first, _edges[i].second, _weights[i]) < std::tie(_edges[j].first, _edges[j].second, _weights[j]); });
+        else std::sort(indices.begin(), indices.end(), [&](uint32_t i, uint32_t j) { return _edges[i] < _edges[j]; });
+
+        auto argsort = [](auto& vec, std::vector<uint32_t> indices) {
+            for(uint32_t ind = 0; ind < indices.size(); ind++){
+                uint32_t v = ind;
+                while(indices[v] != ind) {
+                    std::swap(vec[v], vec[indices[v]]);
+                    uint32_t u = indices[v];
+                    indices[v] = v;
+                    v = u;
+                }
+                indices[v] = v;
+            }
+        };
+
+        argsort(_edges, indices);
+        if(_weights.size()) argsort(_weights, indices);
+
+        if constexpr (!is_edge_list) {
+            if(!_is_directed) {
+                // we need to delete every edge duplicate, assuming the adjacency list was correct
+                bool didnt_add = 0;
+                size_t j = 0;
+                for(size_t i = 1; i < _edges.size(); i++) {
+                    if(didnt_add || _edges[j] != _edges[i]) {
+                        j++;
+                        _edges[j] = std::move(_edges[i]);
+                        if(_weights.size()) _weights[j] = std::move(_weights[i]);
+                        didnt_add = false;
+                    }
+                    else{
+                        didnt_add = true;
+                    }
+                }
+                _edges.erase(_edges.begin() + j + 1, _edges.end());
+                if(_weights.size()) _weights.erase(_weights.begin() + j + 1, _weights.end());
+            }
+        }
+        _sz = std::max(_sz, max_node_number + 1);
+        _adj_list.assign(_sz, {});
+        int i = 0;
+        for(auto &[x, y]: _edges){
+            _adj_list[x].emplace_back(y, i);
+            if(_is_directed == false) _adj_list[y].emplace_back(x, i);
+            i++;
+        }
+
+    }
     
 public:
     /**
-     * @brief Construct an unweighted graph
+     * @brief Constructs a graph
      * 
+     * @param graph a graph vector given either as an adjacency list or a vector of edges
      * @param vertice_count number of nodes in a graph
-     * @param edges list of edges (0 indexed)
      * @param is_directed true if graph is directed
      */
-    Graph(uint32_t vertice_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, bool is_directed = false);
-    
+    template<typename T>
+    Graph(const std::vector<T>& graph, uint32_t vertice_count = 0, bool is_directed = false):
+        _sz(vertice_count),
+        _is_directed(is_directed), 
+        _edges({}),
+        _weights({}),
+        _adj_list({})
+        {
+            initialize(graph.begin(), graph.end());
+        }
+
     /**
-     * @brief Constructs a weighted graph
+     * @brief Constructs a graph based on range given via the iterator
      * 
-     * @param vertice_count number of nodes in a graph
-     * @param edges list of edges (0 indexed)
+     * @param begin beginning of the range of edges
+     * @param end end of the range of edges
+     * @param indexing first node of the graph
      * @param is_directed true if graph is directed
      */
-    Graph(uint32_t vertice_count, std::vector<std::tuple<uint32_t, uint32_t, int>> edges, bool is_directed = false);
+    template<typename Iter>
+    Graph(Iter begin, Iter end, uint32_t indexing = 0, uint32_t vertice_count = 0, bool is_directed = false):
+        _sz(vertice_count),
+        _is_directed(is_directed), 
+        _edges({}),
+        _weights({}),
+        _adj_list({})
+        {
+            initialize(begin, end, indexing);
+        }
+
     ~Graph();
     
     /**

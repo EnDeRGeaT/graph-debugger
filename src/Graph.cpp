@@ -11,53 +11,6 @@
 namespace debug {
     std::shared_ptr<OpenGL::Window> Graph::_window = nullptr;
 
-    Graph::Graph(uint32_t vertice_count, const std::vector<std::pair<uint32_t, uint32_t>>& edges, bool is_directed):
-        _sz(vertice_count),
-        _is_directed(is_directed), 
-        _edges({}),
-        _weights({}),
-        _adj_list({})
-        {
-            _edges = edges;
-            if(_is_directed == false) {
-                for (auto &[x, y] : _edges) {
-                    if(x > y) std::swap(x, y);
-                }
-            }
-            _adj_list.assign(_sz, {});
-            std::sort(_edges.begin(), _edges.end());
-            int i = 0;
-            for(auto &[x, y]: _edges){
-                _adj_list[x].emplace_back(y, i);
-                if(_is_directed == false) _adj_list[y].emplace_back(x, i);
-                i++;
-            }
-        }
-
-    Graph::Graph(uint32_t vertice_count, std::vector<std::tuple<uint32_t, uint32_t, int32_t>> edges, bool is_directed):
-        _sz(vertice_count),
-        _is_directed(is_directed), 
-        _edges({}),
-        _weights({}),
-        _adj_list({})    
-        {
-            for(auto [x, y, w]: edges){
-                if(x > y && is_directed == false) std::swap(x, y);
-            }
-            std::sort(edges.begin(), edges.end());
-            _edges.reserve(_sz);
-            _weights.reserve(_sz);
-            _adj_list.assign(_sz, {});
-            int i = 0;
-            for(auto &[x, y, w]: edges){
-                _adj_list[x].emplace_back(y, i);
-                if(_is_directed == false) _adj_list[y].emplace_back(x, i);
-                _edges.emplace_back(x, y);
-                _weights.push_back(w);
-                i++;
-            }
-        }
-
     Graph::~Graph(){
         if(_running_thread.joinable()){
             std::cerr << "Waiting on window to close...\n";
