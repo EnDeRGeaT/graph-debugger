@@ -66,7 +66,7 @@ int main(){
         {1, 2},
         {1, 3}
     };
-    auto g = Graph(edges);
+    auto g = debug::Graph(edges);
     g.visualize();
 }
 ```
@@ -82,8 +82,23 @@ One of the workarounds is to visualize an empty Graph at the start of your main 
 ```cpp
 int main(){
     auto blank_edges = std::vector<std::pair<uint32_t, uint32_t>>{};
-    auto blank = Graph(blank_edges);
+    auto blank = debug::Graph(blank_edges);
     blank.visualize();
     /* your program as usual */
+}
+```
+
+Another workaround which should (hopefully) work on any platform is to create and run GraphDebugger window in the main thread and run all of your code in another one.
+```cpp
+
+int main(){
+    debug::Graph::initializeWindow(); // initializes the window
+
+    std::thread th([&]() {
+        /* your program as usual*/
+    });
+
+    debug::Graph::runWindowLoop(); // starts the main loop of the window
+    th.join();
 }
 ```

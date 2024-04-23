@@ -267,7 +267,7 @@ namespace OpenGL{
         Window(int width, int height);
         ~Window();
         template<typename T, typename ...Args>
-        std::weak_ptr<T> addTab(Args&&... args){
+        std::weak_ptr<T> addTab(Args&&... args){ // i must create tab in the thread where OpenGL context is located
             std::thread async_thread([&]() {
                 std::unique_lock lck(_tab_mutex);
                 _addition_pending = true;
@@ -598,6 +598,20 @@ class Graph{
     }
     
 public:
+    
+    /**
+     * @brief Creates a window where all graphs will be drawn. Note that until runWindowLoop() is not called, the window will be "not responding"
+     * 
+     * @param width the width of the created window
+     * @param height the height of the created window
+     */
+    static void initializeWindow(int width = 800, int height = 600);
+    
+    /**
+     * @brief Runs the main loop of a window. Note that after runWindowLoop() is called, it will be executing in the called thread until the window is closed.
+     */
+    static void runWindowLoop();
+
     /**
      * @brief Constructs a graph
      * 

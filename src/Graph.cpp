@@ -11,6 +11,15 @@
 namespace debug {
     std::shared_ptr<OpenGL::Window> Graph::_window = nullptr;
 
+    void Graph::initializeWindow(int width, int height) {
+        if(_window) _window.reset();
+        _window = std::make_shared<OpenGL::Window>(800, 600);
+    }
+    
+    void Graph::runWindowLoop() {
+        _window->run();
+    }
+
     Graph::~Graph(){
         if(_running_thread.joinable()){
             std::cerr << "Waiting on window to close...\n";
@@ -24,14 +33,14 @@ namespace debug {
         if(_window == nullptr){
             std::condition_variable cv;
             _running_thread = std::thread([&](){
-                    {
-                    std::lock_guard lock(_window_init_mutex);
-                    _window = std::make_shared<OpenGL::Window>(800, 600);
-                    cv.notify_all();
-                    }
-                    _window->run();
-                    _window.reset();
-                    });
+            {
+                std::lock_guard lock(_window_init_mutex);
+                initializeWindow();
+                cv.notify_all();
+            }
+                runWindowLoop();
+                _window.reset();
+            });
             cv.wait(lck, [&](){return _window != nullptr;});
         }
         if(_associated_tab.expired()){
