@@ -74,7 +74,7 @@ To learn about the things you can do in the window itself, press H while focused
 ## Issues
 Since the library tries to be as non-intrusive as possible, there are some sacrifices to be made.  
 
-For example, this library is not supported on MacOS and will never be supported in an intended way.
+For example, this library is not supported on MacOS and will never be supported in an intended way (or in any way for that matter, OpenGL 4.3 is not supported on Apple products).
 
 Also there is a bug on some of the Linux distros, which results in a segfault upon closing the window.
 
