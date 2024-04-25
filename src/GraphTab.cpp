@@ -871,7 +871,12 @@ namespace debug {
                     if(!right_mouse_button_pressed){
                         uint32_t v = getClickedNode(cursor_x, cursor_y);
                         if(v != coords.size()){
-                            {
+                            auto it = std::find(new_nodes.begin(), new_nodes.end(), v);
+                            if(it != new_nodes.end()) {
+                                tab.deleteNode(v);
+                                new_nodes.erase(it);
+                            }
+                            else {
                                 auto it = std::find(highlighted.begin(), highlighted.end(), v);
                                 if(it == highlighted.end()) {
                                     highlighted.push_back(v);
@@ -880,13 +885,6 @@ namespace debug {
                                 else{
                                     tab._node_properties.mutateData()[v].color = tab._default_node_color;
                                     highlighted.erase(it);
-                                }
-                            }
-                            {
-                                auto it = std::find(new_nodes.begin(), new_nodes.end(), v);
-                                if(it != new_nodes.end()) {
-                                    tab.deleteNode(v);
-                                    new_nodes.erase(it);
                                 }
                             }
                         }
