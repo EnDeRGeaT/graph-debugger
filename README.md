@@ -1,4 +1,7 @@
-Small Graph drawing library which makes debugging graph problems easier!
+Small Graph drawing library which makes drawing graphs trivial!
+
+![](https://cdn.discordapp.com/attachments/751095110246072322/1234564177251799060/2024-04-29_20-25-51.gif?ex=663130fc&is=662fdf7c&hm=b496f88401604f7061258f948035c974d1a998fe69a8867373417bf494be10ac&)
+
 ## Prerequisites
 - CMake 3.0+
 - Git 1.8.2+
